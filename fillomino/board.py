@@ -2,9 +2,14 @@
 
 import numpy as np
 
+from fillomino.database import Database
+
 class Board(object):
   
+  
   def __init__(self, rows, columns):
+    
+    self.boardDB = Database("boards.db")
     
     self.rows    = rows
     self.columns = columns
