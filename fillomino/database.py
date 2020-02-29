@@ -83,19 +83,19 @@ class Database(object):
     return self.cursor.fetchall()
     
     
-  def getRandomBoard(self, rows, columns):
+  def loadRandomBoard(self, rows, columns):
     cmd  = """SELECT * FROM boards{}x{} ORDER BY RANDOM() LIMIT 1""".format(rows, columns)
-    rows = self._executeCommand(cmd)
+    ret = self._executeCommand(cmd)
     
-    if len(rows) != 1:
+    if len(ret) != 1:
       raise SystemError("No boards in the {}x{} table".format(rows, columns))
-    
+
+    board = ret[0]
     return {
-      "id":           rows[0],
-      "initialBoard": rows[1],
-      "finalBoard":   rows[2],
-      "stats":        rows[3]
-  
+      "id":           board[0],
+      "initialBoard": json.loads(board[1]),
+      "finalBoard":   json.loads(board[2]),
+      "stats":        json.loads(board[3])
     }
     
   
