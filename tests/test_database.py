@@ -47,9 +47,9 @@ class test_Database(unittest.TestCase):
     # store <numBoards> boards
     for boardID in range(1,numBoards+1):
       # store the board
-      initialBoard = {"a": boardID}
-      finalBoard = {"b": boardID + 1}
-      stats = {"c": boardID + 2, "d": boardID + 3}
+      initialBoard = [boardID]
+      finalBoard   = [boardID+1]
+      stats        = {"c": boardID + 2, "d": boardID + 3}
       db.storeBoard(rows=rows,
                     columns=columns,
                     boardID=boardID,
@@ -71,8 +71,8 @@ class test_Database(unittest.TestCase):
     for boardID in boardIDList:
       
       # store the board
-      initialBoard = {"a":boardID}
-      finalBoard   = {"b":boardID+1}
+      initialBoard = [boardID]
+      finalBoard   = [boardID+1]
       stats        = {"c":boardID+2, "d":boardID+3}
       storeRet = self.db.storeBoard(rows         = rows,
                                     columns      = columns,
@@ -86,8 +86,8 @@ class test_Database(unittest.TestCase):
       
       # TEST: boards are the same
       self.assertIsNotNone(loadRet)
-      self.assertDictEqual(initialBoard, loadRet["initialBoard"])
-      self.assertDictEqual(finalBoard, loadRet["finalBoard"])
+      self.assertListEqual(initialBoard, loadRet["initialBoard"])
+      self.assertListEqual(finalBoard, loadRet["finalBoard"])
       self.assertDictEqual(stats, loadRet["stats"])
 
 
@@ -105,9 +105,9 @@ class test_Database(unittest.TestCase):
     for boardID in range(1,11):
       
       # store the board
-      initialBoard = {"a": boardID}
-      finalBoard = {"b": boardID + 1}
-      stats = {"c": boardID + 2, "d": boardID + 3}
+      initialBoard = [boardID]
+      finalBoard   = [boardID+1]
+      stats        = {"c": boardID + 2, "d": boardID + 3}
       
       args = {
         "rows":         rows,
@@ -125,9 +125,9 @@ class test_Database(unittest.TestCase):
     # TEST: storing boards with IDs >10 succeeds
     for boardID in range(11, 21):
       # store the board
-      initialBoard = {"a": boardID}
-      finalBoard = {"b": boardID + 1}
-      stats = {"c": boardID + 2, "d": boardID + 3}
+      initialBoard = [boardID]
+      finalBoard   = [boardID+1]
+      stats        = {"c": boardID + 2, "d": boardID + 3}
   
       args = {
         "rows": rows,
@@ -178,5 +178,5 @@ class test_Database(unittest.TestCase):
       
       # TEST: board was returned okay
       self.assertIsNotNone(boardInfo)
-      self.assertIn(boardInfo["id"], range(1, 50))
+      self.assertIn(boardInfo["id"], range(1, 51))
       

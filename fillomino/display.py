@@ -22,6 +22,7 @@ import time
 import PyQt5.QtWidgets as QtWidgets
 #from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QApplication
 
+from fillomino.controller import Controller
 
 
 class MainApp(QtCore.QObject):
@@ -46,6 +47,12 @@ class MainApp(QtCore.QObject):
     #self.widgets = {}
     
     #self.currentRow = 0
+
+    # =========================================================================
+    # Controller
+    # =========================================================================
+    
+    self.controller = Controller("boards.db")
     
     # =========================================================================
     # GUI
@@ -127,10 +134,10 @@ class MainApp(QtCore.QObject):
     menuAction = self.sender()
     
     actionMap = {
-      "New":   lambda: print("New"),
+      "New":   self._newBoard,
       "Save":  lambda: print("Save"),
       "Load":  lambda: print("Load"),
-      "Quit":  lambda: sys.exit(),
+      "Quit":  sys.exit,
       "About": lambda: print("About"),
     }
     
@@ -223,5 +230,15 @@ class MainApp(QtCore.QObject):
 
 
   def _newBoard(self):
+    """ Load a new, random board """
+    self._setBoard(self.controller.getNewBoard())
     
-    pass
+  def _setBoard(self, board):
+    
+    vals = board.getValues()
+    
+    rows, columns = vals.shape
+    
+    for row in range(rows):
+      for column in range(columns):
+        self.gameGrid[row][column].setText(str(vals[row][column]))
