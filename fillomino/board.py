@@ -23,8 +23,16 @@ class Board(object):
     return board
   
   
-  def __init__(self, rows, columns):
-    
+  def __init__(self, rows, columns, initialValues=None, finalValues=None, stats=None):
+    """
+    #
+    #
+    #
+    # -initialValues: (array)
+    # -finalValues:   (array)
+    # -stats:         (dictionary)
+    #
+    """
     self.rows    = rows
     self.columns = columns
     self.values  = np.zeros((rows, columns), np.int8)
@@ -57,6 +65,7 @@ class Board(object):
     # Group all of the board cells into groups
     #
     """
+    
     
     # reset the group info
     for i in range(10):
@@ -96,8 +105,6 @@ class Board(object):
             
             # processed these cells
             processedLocations += newGroup
-            
-
   
     
   def _findNeighbourMatches(self, row, column, number, locations=None):

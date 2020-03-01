@@ -37,11 +37,11 @@ class Controller(object):
   
   def updateBoard(self, x, y, value):
     """ Update the value of a board entry """
-    self.board.updateCell(x, y, value)
-    self.gui.updateCell(x,y,value)
     
+    self.board.updateCell(x, y, value)
     self.board.updateGroups()
     
+    self.gui.updateCell(x,y,value)
     self.gui.highlightValidGroups(self.board.getValidGroups())
     self.gui.highlightInvalidGroups(self.board.getInvalidGroups())
   
@@ -57,9 +57,12 @@ class Controller(object):
 
     # create a new board
     self.board = Board.createBoardFromList(self.rows, self.columns, boardInfo["initialBoard"])
-
+    self.board.updateGroups()
+    
     # update the gui
     self.gui.setBoard(self.board)
+    self.gui.highlightValidGroups(self.board.getValidGroups())
+    self.gui.highlightInvalidGroups(self.board.getInvalidGroups())
     
   
   def resetBoard(self):
@@ -70,3 +73,10 @@ class Controller(object):
     
     # update the gui
     self.gui.setBoard(self.board)
+    
+    
+  def clearErrors(self):
+    """ Clear any cells that don't match the final board values """
+    
+    print("clear errors")
+    pass
