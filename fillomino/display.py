@@ -1,39 +1,31 @@
+import logging
+logger = logging.getLogger(__name__)
 
-import datetime
-import math
 import sys
-
-#import numpy as np
-#import pandas as pd
-#import Tkinter as tk
-#import tkSimpleDialog
 
 import PyQt5.QtCore as QtCore
 import PyQt5.QtGui as QtGui
-#import pyqtgraph as pg
 
 import numpy as np
 
-from datetime import timedelta
-
-import threading
-import time
-
 import PyQt5.QtWidgets as QtWidgets
-#from PyQt5.QtWidgets import QWidget, QGridLayout, QPushButton, QApplication
-
-from fillomino.controller import Controller
 
 
-class MainApp(QtCore.QObject):
+class GUI(QtCore.QObject):
   """
   """
   
   CELL_STYLE_NORMAL      = "border-style: outset; border-width: 1px; border-color: black; background: white;"
   CELL_STYLE_HIGHLIGHTED = "border-style: outset; border-width: 1px; border-color: yellow; background: yellow;"
-
+  
+  class SelectedCell(object):
+    def __init__(self, x, y, originalStyle):
+      self.x = x
+      self.y = y
+      self.originalStyle = originalStyle
+  
   # initial setup
-  def __init__(self):
+  def __init__(self, controller, board):
     """ Setup the main window """
     
     QtCore.QObject.__init__(self)
@@ -47,12 +39,6 @@ class MainApp(QtCore.QObject):
     #self.widgets = {}
     
     #self.currentRow = 0
-
-    # =========================================================================
-    # Controller
-    # =========================================================================
-    
-    self.controller = Controller("boards.db")
     
     # =========================================================================
     # GUI
@@ -83,14 +69,20 @@ class MainApp(QtCore.QObject):
     self.mainLayout.addLayout(gridLayout, 100)
     
     # controls
-    self.controls = MainApp._createControls()
+    self.controls = self._createControls()
     self.mainLayout.addLayout(self.controls, 1)
     # =========================================================================
     
+    self.selectedCell = None
+    #self.currentCell = None
+
+    self.controller = controller
+    self.board      = board
     
-    self.currentCell = None
+    # set and display the board
+    self.setBoard(board)
     
-    
+  
   def _keyPressed(self, event):
     
     # ignore anything that's not a number
@@ -98,35 +90,80 @@ class MainApp(QtCore.QObject):
     if key < 49 or key > 57:
       return
     
-    # set the current cell to this number
-    if self.currentCell:
-      self.currentCell.setText(chr(key))
+    # if we have a selected cell then update it
+    if self.selectedCell:
+      self.controller.updateBoard(x=self.selectedCell.x,
+                                  y=self.selectedCell.y,
+                                  value=chr(key))
+    
+    ## set the current cell to this number
+    #if self.currentCell:
+    #  self.currentCell.setText(chr(key))
   
-  def _cellClicked(self, event, x, y):
+  
+    
+  
+  def _highlightCell(self, x, y):
+    """
+    # Highlight the given cell and return the previously highlighted cell
+    # to what it was before
+    """
+    
+    # if cell is already highlighted, we're done
+    if self.selectedCell and self.selectedCell.x == x and self.selectedCell.y == y:
+      return
+    
+    # if we already have a selected cell, revert it back to what it was before
+    if self.selectedCell:
+      self.gameGrid[self.selectedCell.x][self.selectedCell.y]\
+        .setStyleSheet(self.selectedCell.originalStyle)
+
+    # register the newly selected cell
+    self.selectedCell = GUI.SelectedCell(x, y, self.gameGrid[x][y].styleSheet())
+
+    # highlight the new cell
+    self.gameGrid[x][y].setStyleSheet(GUI.CELL_STYLE_HIGHLIGHTED)
+
+  def DEP_cellClicked(self, event, x, y):
     """ Called whenever a cell is clicked """
-  
-    #sender = x.sender()
-    #print(sender.text())
     
+    # if we already have a selected cell, and the new cell is different, return
+    # the previously selected cell back to what it was before
+    if self.selectedCell and self.selectedCell.x != x and self.selectedCell.y != y:
+      self._highlightCell(self.selectedCell.x, self.selectedCell.y, self.selectedCell.originalStyle)
+      
+    # register the newly selected cell
+    self.selectedCell = GUI.SelectedCell(x,y,self.gameGrid[x][y].styleSheet())
+    
+    # highlight the new cell
+    self._highlightCell(x, y, GUI.CELL_STYLE_HIGHLIGHTED)
+    
+    """
     # set the current cell to normal
-    if self.currentCell:
-      self.currentCell.setStyleSheet(MainApp.CELL_STYLE_NORMAL)
-
+    if self.currentCellCoords:
+      #self.currentCell.setStyleSheet(GUI.CELL_STYLE_NORMAL)
+      self._highlightCell(*self.currentCellCoords, GUI.CELL_STYLE_NORMAL)
+      
     # make this cell the current cell
-    self.currentCell = self.gameGrid[x][y]
-    self.gameGrid[x][y].setStyleSheet(MainApp.CELL_STYLE_HIGHLIGHTED)
-    
-    #print(x, y)
-    
-    """
-    cell = self.gameGrid[0][0]
-    print(cell.width())
-    print(cell.height())
-
-    print(event.x(), event.y())
-    print(event.globalX(), event.globalY())
+    self.currentCellCoords = (x, y)
+    self._highlightCell(*self.currentCellCoords, GUI.CELL_STYLE_HIGHLIGHTED)
+    #self.currentCell = self.gameGrid[x][y]
+    #self.gameGrid[x][y].setStyleSheet(GUI.CELL_STYLE_HIGHLIGHTED)
     """
 
+  def _controlClicked(self):
+    """ Called whenever a control button is pressed """
+
+    controlAction = self.sender()
+    
+    controlMap = {
+      "Clear": self.controller.resetBoard #self._resetBoard
+    }
+    
+    action = controlMap.get(controlAction.text(), None)
+    if action is not None:
+      action()
+  
   @QtCore.pyqtSlot()
   def _menuClicked(self):
     """ Called whenever a menu item is clicked """
@@ -134,7 +171,7 @@ class MainApp(QtCore.QObject):
     menuAction = self.sender()
     
     actionMap = {
-      "New":   self._newBoard,
+      "New":   self.controller.newBoard,
       "Save":  lambda: print("Save"),
       "Load":  lambda: print("Load"),
       "Quit":  sys.exit,
@@ -179,13 +216,14 @@ class MainApp(QtCore.QObject):
     gridLayout = QtWidgets.QGridLayout()
     gridLayout.setSpacing(0)
   
-    options = [""] + [str(x) for x in range(1, 10)]
+    #options = [""] + [str(x) for x in range(1, 10)]
   
     grid = {}
     for x in range(rows):
       grid[x] = {}
       for y in range(columns):
-        grid[x][y] = self._createCell(np.random.choice(options), x, y)
+        #grid[x][y] = self._createCell(np.random.choice(options), x, y)
+        grid[x][y] = self._createCell("", x, y)
         gridLayout.addWidget(grid[x][y], x, y)
         
     return grid, gridLayout
@@ -199,25 +237,28 @@ class MainApp(QtCore.QObject):
     cell.setAlignment(QtCore.Qt.AlignCenter)
     cell.setScaledContents(True)
     # cell.setStyleSheet("margin-left: 10px; border-radius: 25px; background: white; color: #4A0C46;")
-    cell.setStyleSheet(MainApp.CELL_STYLE_NORMAL)#"border-style: outset; border-width: 1px; border-color: black; background: white;")
+    cell.setStyleSheet(GUI.CELL_STYLE_NORMAL)#"border-style: outset; border-width: 1px; border-color: black; background: white;")
     
     font = QtGui.QFont()
     #font.setFamily("FreeMono")
     font.setPointSize(14)
     cell.setFont(font)
-
-    cell.mousePressEvent = lambda event: self._cellClicked(event, x, y)
     
+    # can't click labels...
+    #cell.mousePressEvent = lambda event: self._cellClicked(event, x, y)
+    #cell.clicked.connect(lambda event: self._cellClicked(event, x, y))
+    cell.mousePressEvent = lambda event: self._highlightCell(x, y)
     return cell
 
-  @staticmethod
-  def _createControls():
+  
+  def _createControls(self):
     """ Create the control buttons at the bottom of the window """
   
     controlsGrid = QtWidgets.QGridLayout()
     controlsGrid.setAlignment(QtCore.Qt.AlignLeft)
     button = QtWidgets.QPushButton("Clear")
-  
+    #button.mousePressEvent = self._controlClicked
+    button.clicked.connect(self._controlClicked)
     controlsGrid.addWidget(button, 0, 1)
   
     return controlsGrid
@@ -228,17 +269,31 @@ class MainApp(QtCore.QObject):
     self.mainWindow.show()
     sys.exit(self.app.exec_())
 
-
-  def _newBoard(self):
-    """ Load a new, random board """
-    self._setBoard(self.controller.getNewBoard())
     
-  def _setBoard(self, board):
+  def setBoard(self, board):
+    """ Store the board and display it """
     
+    # remember this new board
+    self.board = board
+    
+    # get the values and dimensions of the board
     vals = board.getValues()
-    
     rows, columns = vals.shape
     
+    # set the value for each cell
     for row in range(rows):
       for column in range(columns):
-        self.gameGrid[row][column].setText(str(vals[row][column]))
+        val = vals[row][column]
+        
+        # make 0 an empty string
+        if val == 0: val = ""
+        else:        val = str(val)
+        
+        self.gameGrid[row][column].setText(val)
+  
+  def updateCell(self, x, y, value):
+    """ Update the contents of a single cell"""
+    self.gameGrid[x][y].setText(value)
+  
+  
+  
