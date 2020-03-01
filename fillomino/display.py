@@ -15,8 +15,8 @@ class GUI(QtCore.QObject):
   """
   """
   
-  CELL_STYLE_NORMAL      = "border-style: outset; border-width: 1px; border-color: black; background: white;"
-  CELL_STYLE_HIGHLIGHTED = "border-style: outset; border-width: 1px; border-color: yellow; background: yellow;"
+  #CELL_STYLE_NORMAL      = "border-style: outset; border-width: 1px; border-color: black; background: white;"
+  #CELL_STYLE_HIGHLIGHTED = "border-style: outset; border-width: 1px; border-color: yellow; background: yellow;"
   
   class SelectedCell(object):
     def __init__(self, x, y, originalStyle):
@@ -30,6 +30,21 @@ class GUI(QtCore.QObject):
     
     QtCore.QObject.__init__(self)
     
+    ######################################
+
+    self.CELL_STYLE_NORMAL = "border-style: outset; border-width: 1px; border-color: black; background: white;"
+    self.CELL_STYLE_HIGHLIGHTED = "border-style: outset; border-width: 1px; border-color: yellow; background: yellow;"
+    
+    self.CELL_STYLE_1 = "border-style: outset; border-width: 1px; border-color: black; background: salmon;"
+    self.CELL_STYLE_2 = "border-style: outset; border-width: 1px; border-color: black; background: moccasin;"
+    self.CELL_STYLE_3 = "border-style: outset; border-width: 1px; border-color: black; background: coral;"
+    self.CELL_STYLE_4 = "border-style: outset; border-width: 1px; border-color: black; background: khaki;"
+    self.CELL_STYLE_5 = "border-style: outset; border-width: 1px; border-color: black; background: lightgreen;"
+    self.CELL_STYLE_6 = "border-style: outset; border-width: 1px; border-color: black; background: aquamarine;"
+    self.CELL_STYLE_7 = "border-style: outset; border-width: 1px; border-color: black; background: paleturquoise;"
+    self.CELL_STYLE_8 = "border-style: outset; border-width: 1px; border-color: black; background: lightblue;"
+    self.CELL_STYLE_9 = "border-style: outset; border-width: 1px; border-color: black; background: thistle;"
+
     ###self.funcCall.connect(self.entryUpdated)
     
     # dictionary of all of the function timers we add
@@ -122,7 +137,7 @@ class GUI(QtCore.QObject):
     self.selectedCell = GUI.SelectedCell(x, y, self.gameGrid[x][y].styleSheet())
 
     # highlight the new cell
-    self.gameGrid[x][y].setStyleSheet(GUI.CELL_STYLE_HIGHLIGHTED)
+    self.gameGrid[x][y].setStyleSheet(self.CELL_STYLE_HIGHLIGHTED)
 
   def DEP_cellClicked(self, event, x, y):
     """ Called whenever a cell is clicked """
@@ -136,7 +151,7 @@ class GUI(QtCore.QObject):
     self.selectedCell = GUI.SelectedCell(x,y,self.gameGrid[x][y].styleSheet())
     
     # highlight the new cell
-    self._highlightCell(x, y, GUI.CELL_STYLE_HIGHLIGHTED)
+    self._highlightCell(x, y, self.CELL_STYLE_HIGHLIGHTED)
     
     """
     # set the current cell to normal
@@ -237,7 +252,7 @@ class GUI(QtCore.QObject):
     cell.setAlignment(QtCore.Qt.AlignCenter)
     cell.setScaledContents(True)
     # cell.setStyleSheet("margin-left: 10px; border-radius: 25px; background: white; color: #4A0C46;")
-    cell.setStyleSheet(GUI.CELL_STYLE_NORMAL)#"border-style: outset; border-width: 1px; border-color: black; background: white;")
+    cell.setStyleSheet(self.CELL_STYLE_NORMAL)#"border-style: outset; border-width: 1px; border-color: black; background: white;")
     
     font = QtGui.QFont()
     #font.setFamily("FreeMono")
@@ -295,5 +310,22 @@ class GUI(QtCore.QObject):
     """ Update the contents of a single cell"""
     self.gameGrid[x][y].setText(value)
   
+  
+  def _setCellStyle(self, x, y, style):
+    self.gameGrid[x][y].setStyleSheet(style)
+  
+  def highlightValidGroups(self, validGroups):
+    
+    for num in range(1,10):
+      
+      # flatten the list of lists of coords into a single list of coords
+      cells  = [x[i] for x in validGroups.get(num, []) for i in range(len(x))]
+      colour = self.__getattribute__("CELL_STYLE_{}".format(num))
+      
+      for cell in cells:
+        self._setCellStyle(*cell, colour)
+        
+  def highlightInvalidGroups(self, validGroups):
+    pass
   
   

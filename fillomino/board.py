@@ -29,72 +29,120 @@ class Board(object):
     self.columns = columns
     self.values  = np.zeros((rows, columns), np.int8)
     self.initialValues = self.values.copy()
-  
-  def getValues(self):
-    return self.values
+    
+    # groups:
+    #  -groups with the correct number of members
+    self.validGroups   = {}
+    #  -groups with more than the max number of members
+    self.invalidGroups = {}
+    #  -all other groups
+    self.orphanGroups  = {}
+    
+  def getValues(self):        return self.values
+  def getValidGroups(self):   return self.validGroups
+  def getInvalidGroups(self): return self.invalidGroups
   
   def resetBoard(self):
     """ Resets the board to its initial values """
     self.values = self.initialValues.copy()
     
-  def update(self, x, y, value):
+  def updateCell(self, x, y, value):
+    """ Update the value of an individual cell """
     self.values[x][y] = int(value)
-    
-    print(self._findAllHorizontalMatches(x, y, self.values[x][y]))
-    
-  def getValidGroups(self):
-    validGroups = {
-      2:[]
-    }
-    return validGroups
   
-  def getInvalidGroups(self):
-    invalidGroups = {
-      2: []
-    }
-    return invalidGroups
-  
-  
-  def _findValidGroups(self):
-    pass
-  
-  def _findAllConnectedNumbers(self, row, column, number):
-    
-    locations = [(row,column)]
-    
-    horizontalMatches = self._findAllHorizontalMatches(row, column, number)
-    
-    pass
-  
-  def _findAllHorizontalMatches(self, row, column, number):
-    """ Look along the row any find the locations of all the numbers that match the given number """
-    
-    locations = []
 
-    # get all matching numbers to the left
-    columnVal = column-1
-    while columnVal >= 0:
-      print(columnVal)
-      print(self.values[row][columnVal])
-      if self.values[row][columnVal] == number:
-        locations.append((row, columnVal))
-        columnVal -= 1
-      else:
-        break
+  
+  def updateGroups(self):
+    """
+    # Group all of the board cells into groups
+    #
+    """
     
-    # get all matching numbers to the right
-    columnVal = column+1
-    while columnVal < self.columns:
-      print(columnVal)
-      print(self.values[row][columnVal])
-      if self.values[row][columnVal] == number:
-        locations.append((row, columnVal))
-        columnVal += 1
-      else:
-        break
+    # reset the group info
+    for i in range(10):
+      self.validGroups[i]   = []
+      self.invalidGroups[i] = []
+      self.orphanGroups[i]  = []
+    
+    processedLocations = []
+    
+    # look a t each cell
+    for row in range(self.rows):
+      for col in range(self.columns):
+        
+        # if we haven't processed it yet
+        if (row,col) not in processedLocations:
+          
+          # get cell value
+          cellVal = self.values[row][col]
+          
+          # empty cells are always orphans
+          if cellVal == 0:
+            self.orphanGroups[0].append((row, col))
+            processedLocations.append((row, col))
+          
+          else:
+            
+            # get this group of numbers
+            newGroup = self._findNeighbourMatches(row, col, cellVal)
+            
+            # is it a valid, invalid, or orphan group
+            if len(newGroup) == cellVal:
+              self.validGroups[cellVal].append(newGroup)
+            elif len(newGroup) > cellVal:
+              self.invalidGroups[cellVal].append(newGroup)
+            else:
+              self.orphanGroups[cellVal].append(newGroup)
+            
+            # processed these cells
+            processedLocations += newGroup
+            
+
+  
+    
+  def _findNeighbourMatches(self, row, column, number, locations=None):
+    """
+    # From the given cell, find the cells with matching numbers in the
+    # N,S,W,E directions, ifnoring the loctions we have already found.
+    # Called recursively to find all the members of this number group
+    #
+    # row:
+    # column:
+    # number:    cell value to match
+    # locations: list of locations to ignore
+    #
+    """
+    
+    if locations is None:
+      locations = []
+    
+    # north
+    newColumn = column-1
+    if newColumn >= 0 and (row, newColumn) not in locations:
+      if self.values[row][newColumn] == number:
+        locations.append((row, newColumn))
+        self._findNeighbourMatches(row, newColumn, number, locations)
+    
+    # south
+    newColumn = column+1
+    if newColumn < self.columns and (row, newColumn) not in locations:
+      if self.values[row][newColumn] == number:
+        locations.append((row, newColumn))
+        self._findNeighbourMatches(row, newColumn, number, locations)
+        
+    # west
+    newRow = row-1
+    if newRow >= 0 and (newRow, column) not in locations:
+      if self.values[newRow][column] == number:
+        locations.append((newRow, column))
+        self._findNeighbourMatches(newRow, column, number, locations)
+        
+    # east
+    newRow = row+1
+    if newRow < self.rows and (newRow, column) not in locations:
+      if self.values[newRow][column] == number:
+        locations.append((newRow, column))
+        self._findNeighbourMatches(newRow, column, number, locations)
     
     return locations
-    
-  def _findAllVerticalMatches(self, row, column, number):
-    pass
   

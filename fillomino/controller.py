@@ -37,9 +37,13 @@ class Controller(object):
   
   def updateBoard(self, x, y, value):
     """ Update the value of a board entry """
-    self.board.update(x,y,value)
+    self.board.updateCell(x, y, value)
     self.gui.updateCell(x,y,value)
     
+    self.board.updateGroups()
+    
+    self.gui.highlightValidGroups(self.board.getValidGroups())
+    self.gui.highlightInvalidGroups(self.board.getInvalidGroups())
   
   def newBoard(self):
     """ Return a random board from the database """
