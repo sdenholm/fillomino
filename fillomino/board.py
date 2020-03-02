@@ -6,12 +6,26 @@ import numpy as np
 class Board(object):
   
   @staticmethod
-  def createBoardFromList(rows, columns, boardList):
-    """ Create a board with its layout given by a 1D list """
+  def createBoard(rows, columns, initialValuesList, finalValuesList, stats):
+    """ Create a board using lists """
     
-    # create a blank board
-    board = Board(rows=rows, columns=columns)
+    initialArr = np.zeros((rows, columns), np.int8)
+    finalArr   = np.zeros((rows, columns), np.int8)
+
+    # convert the lists to arrays
+    for row in range(rows):
+      for column in range(columns):
+        initialArr[row][column] = initialValuesList[row*rows + column]
+        finalArr[row][column]   = finalValuesList[row*rows + column]
     
+    
+    # create the board
+    board = Board(rows=rows, columns=columns,
+                  initialValues=initialArr,
+                  finalValues=finalArr,
+                  stats=stats)
+    
+    """
     # set its values
     for row in range(rows):
       for column in range(columns):
@@ -19,46 +33,102 @@ class Board(object):
     
     # set this as the initial state
     board.initialValues = board.values.copy()
+    """
     
     return board
   
   
   def __init__(self, rows, columns, initialValues=None, finalValues=None, stats=None):
     """
-    #
-    #
-    #
     # -initialValues: (array)
     # -finalValues:   (array)
     # -stats:         (dictionary)
     #
     """
+    
+    # if no initial values given then set to 0s (all blank)
+    if initialValues is None:
+      initialValues = np.zeros((rows, columns), np.int8)
+      
+    # no stats
+    if stats is None:
+      stats = {}
+      
     self.rows    = rows
     self.columns = columns
-    self.values  = np.zeros((rows, columns), np.int8)
-    self.initialValues = self.values.copy()
+    self.values  = initialValues.copy()
+    
+    self.initialValues = initialValues
+    self.finalValues   = finalValues
+    self.stats         = stats
     
     # groups:
     #  -groups with the correct number of members
-    self.validGroups   = {}
     #  -groups with more than the max number of members
-    self.invalidGroups = {}
     #  -all other groups
+    self.invalidGroups = {}
+    self.validGroups   = {}
     self.orphanGroups  = {}
     
+    # gather the group information
+    self.updateGroups()
+  
+  
   def getValues(self):        return self.values
+  def getCellValue(self,row,col): return self.values.item(row,col)
   def getValidGroups(self):   return self.validGroups
   def getInvalidGroups(self): return self.invalidGroups
+  def getOrphanGroups(self):  return self.orphanGroups
+  
+  
   
   def resetBoard(self):
     """ Resets the board to its initial values """
+    
+    # set the values
     self.values = self.initialValues.copy()
+    
+    # update the groups
+    self.updateGroups()
+    
     
   def updateCell(self, x, y, value):
     """ Update the value of an individual cell """
-    self.values[x][y] = int(value)
+    
+    # can't update initial value cells
+    if self.initialValues[x][y] != 0:
+      return
+    
+    # update cell and the group info
+    self._setCellValue(x, y, value)
+    self.updateGroups()
   
-
+  
+  
+  def clearErrors(self):
+    """
+    # Find the differences between the current and final values and set any differences to 0
+    """
+    
+    # no final values to compare to
+    if self.finalValues is None:
+      return
+    
+    # set every difference to 0
+    #  -ignore blank cells
+    #  -ignore cells defined by the initial values
+    for row in range(self.rows):
+      for col in range(self.columns):
+        if self.values[row][col] != 0 and self.initialValues[row][col] == 0 and\
+           self.values[row][col] != self.finalValues[row][col]:
+          self._setCellValue(row, col, 0)
+    
+    # update the group information
+    self.updateGroups()
+    
+    
+  def _setCellValue(self, x, y, value):
+    self.values[x][y] = int(value)
   
   def updateGroups(self):
     """
@@ -87,13 +157,13 @@ class Board(object):
           
           # empty cells are always orphans
           if cellVal == 0:
-            self.orphanGroups[0].append((row, col))
+            self.orphanGroups[0].append([(row, col)])
             processedLocations.append((row, col))
           
           else:
             
-            # get this group of numbers
-            newGroup = self._findNeighbourMatches(row, col, cellVal)
+            # get this group of numbers, ignoring the current cell
+            newGroup = self._findNeighbourMatches(row, col, cellVal, [(row, col)])
             
             # is it a valid, invalid, or orphan group
             if len(newGroup) == cellVal:
@@ -105,12 +175,21 @@ class Board(object):
             
             # processed these cells
             processedLocations += newGroup
-  
+    
+    #print("validGroups========")
+    #for k,v in self.validGroups.items():
+    #  print(k, v)
+    #print("invalidGroups========")
+    #for k,v in self.invalidGroups.items():
+    #  print(k, v)
+    #print("orphanGroups========")
+    #for k,v in self.orphanGroups.items():
+    #  print(k, v)
     
   def _findNeighbourMatches(self, row, column, number, locations=None):
     """
     # From the given cell, find the cells with matching numbers in the
-    # N,S,W,E directions, ifnoring the loctions we have already found.
+    # N,S,W,E directions, ignoring the loctions we have already found.
     # Called recursively to find all the members of this number group
     #
     # row:

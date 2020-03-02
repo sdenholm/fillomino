@@ -39,30 +39,39 @@ class Controller(object):
     """ Update the value of a board entry """
     
     self.board.updateCell(x, y, value)
-    self.board.updateGroups()
     
-    self.gui.updateCell(x,y,value)
-    self.gui.highlightValidGroups(self.board.getValidGroups())
-    self.gui.highlightInvalidGroups(self.board.getInvalidGroups())
+    
+    self.gui.updateCell(x,y)
+    
+    #self.gui.highlightGroups()#validGroups=self.board.getValidGroups(),
+                             #invalidGroups=self.board.getInvalidGroups(),
+                             #orphanGroups=self.board.getOrphanGroups())
   
   def newBoard(self):
     """ Return a random board from the database """
     
     # load in a board's info
     #boardInfo = self.db.loadRandomBoard(rows=self.rows, columns=self.columns)
-
+    
+    #randList = list(map(int, np.random.randint(0,9,self.rows*self.columns)))
+    
+    initList  = [8]*6 + [0]*14 + [0]*40 + [7]*6 + [0]*14 + [0]*16*20
+    finalList = [8]*8 + [0]*12 + [0]*40 + [7]*7 + [0]*13 + [0]*16*20
+    
     boardInfo = {
-      "initialBoard": list(map(int, np.random.randint(0,9,self.rows*self.columns)))
+      "initialBoard": initList,
+      "finalBoard":   finalList,
+      "stats": {}
     }
 
     # create a new board
-    self.board = Board.createBoardFromList(self.rows, self.columns, boardInfo["initialBoard"])
-    self.board.updateGroups()
+    self.board = Board.createBoard(self.rows, self.columns,
+                                   initialValuesList=boardInfo["initialBoard"],
+                                   finalValuesList=boardInfo["finalBoard"],
+                                   stats=boardInfo["stats"])
     
     # update the gui
     self.gui.setBoard(self.board)
-    self.gui.highlightValidGroups(self.board.getValidGroups())
-    self.gui.highlightInvalidGroups(self.board.getInvalidGroups())
     
   
   def resetBoard(self):
@@ -78,5 +87,8 @@ class Controller(object):
   def clearErrors(self):
     """ Clear any cells that don't match the final board values """
     
-    print("clear errors")
-    pass
+    # clear errors
+    self.board.clearErrors()
+
+    # update the gui
+    self.gui.setBoard(self.board)

@@ -15,6 +15,8 @@ class GUI(QtCore.QObject):
   """
   """
   
+  
+  
   #CELL_STYLE_NORMAL      = "border-style: outset; border-width: 1px; border-color: black; background: white;"
   #CELL_STYLE_HIGHLIGHTED = "border-style: outset; border-width: 1px; border-color: yellow; background: yellow;"
   
@@ -32,22 +34,31 @@ class GUI(QtCore.QObject):
     
     ######################################
     
-    defaultCellStyle = "border-style: outset; border-width: 1px;"
-    self.CELL_STYLE_NORMAL      = defaultCellStyle + "border-color: black; background: white;"
-    self.CELL_STYLE_HIGHLIGHTED = defaultCellStyle + "border-color: yellow; background: yellow;"
-    
-    self.CELL_STYLE_1 = defaultCellStyle + "border-color: black; background: salmon;"
-    self.CELL_STYLE_2 = defaultCellStyle + "border-color: black; background: moccasin;"
-    self.CELL_STYLE_3 = defaultCellStyle + "border-color: black; background: coral;"
-    self.CELL_STYLE_4 = defaultCellStyle + "border-color: black; background: khaki;"
-    self.CELL_STYLE_5 = defaultCellStyle + "border-color: black; background: lightgreen;"
-    self.CELL_STYLE_6 = defaultCellStyle + "border-color: black; background: aquamarine;"
-    self.CELL_STYLE_7 = defaultCellStyle + "border-color: black; background: paleturquoise;"
-    self.CELL_STYLE_8 = defaultCellStyle + "border-color: black; background: lightblue;"
-    self.CELL_STYLE_9 = defaultCellStyle + "border-color: black; background: thistle;"
-    
-    self.CELL_STYLE_INVALID = defaultCellStyle + "border-color: black; background: crimson;"
+    defaultCellStyle = "border-style: outset; border-width: 1px; border-color: black;"
+    self.CELL_STYLE_INITIAL     = defaultCellStyle + "border-color: red; background: white;"
+    self.CELL_STYLE_NORMAL      = defaultCellStyle + "background: white;" #border-color: black;
+    #self.CELL_STYLE_HIGHLIGHTED = "border-color: yellow; background: yellow;"
+    self.CELL_STYLE_HIGHLIGHTED = "background: yellow;"
 
+    self.CELL_STYLE_1 = defaultCellStyle+"background: salmon;"
+    self.CELL_STYLE_2 = defaultCellStyle+"background: moccasin;"
+    self.CELL_STYLE_3 = defaultCellStyle+"background: coral;"
+    self.CELL_STYLE_4 = defaultCellStyle+"background: khaki;"
+    self.CELL_STYLE_5 = defaultCellStyle+"background: lightgreen;"
+    self.CELL_STYLE_6 = defaultCellStyle+"background: aquamarine;"
+    self.CELL_STYLE_7 = defaultCellStyle+"background: paleturquoise;"
+    self.CELL_STYLE_8 = defaultCellStyle+"background: lightblue;"
+    self.CELL_STYLE_9 = defaultCellStyle+"background: thistle;"
+    
+    self.CELL_STYLE_INVALID = defaultCellStyle+"background: crimson;"
+    
+    #############################
+    
+    self.DELETE_KEY      = 16777223
+    self.NUMBER_KEY_LIST = list(range(49, 58))
+    
+    ################
+    
     ###self.funcCall.connect(self.entryUpdated)
     
     # dictionary of all of the function timers we add
@@ -99,20 +110,33 @@ class GUI(QtCore.QObject):
     
     # set and display the board
     self.setBoard(board)
-    
+
+  def _getCellValue(self, x, y):
+    val = self.gameGrid[x][y].text()
+    if val == "":
+      return 0
+    else:
+      return int(val)
   
   def _keyPressed(self, event):
-    
-    # ignore anything that's not a number 1-9
+  
     key = event.key()
-    if key < 49 or key > 57:
+    
+    # ignore anything that's not a number 1-9 or delete
+    if key != self.DELETE_KEY and key not in self.NUMBER_KEY_LIST:
       return
+    
+    # convert the key pressed to its value (delete is 0)
+    if key == self.DELETE_KEY:
+      key = "0"
+    else:
+      key = chr(key)
     
     # if we have a selected cell then update it
     if self.selectedCell:
       self.controller.updateBoard(x=self.selectedCell.x,
                                   y=self.selectedCell.y,
-                                  value=chr(key))
+                                  value=key)
     
     ## set the current cell to this number
     #if self.currentCell:
@@ -121,10 +145,11 @@ class GUI(QtCore.QObject):
   
     
   
-  def _highlightCell(self, x, y):
+  def _highlightSelectedCell(self, x, y):
     """
     # Highlight the given cell and return the previously highlighted cell
     # to what it was before
+    #  -NOTE: can't use _setCellStyle as this ignores selected cell highlighting
     """
     
     # if cell is already highlighted, we're done
@@ -133,16 +158,15 @@ class GUI(QtCore.QObject):
     
     # if we already have a selected cell, revert it back to what it was before
     if self.selectedCell:
-      self._setCellStyle(self.selectedCell.x, self.selectedCell.y, self.selectedCell.originalStyle)
-      #self.gameGrid[self.selectedCell.x][self.selectedCell.y]\
-      #  .setStyleSheet(self.selectedCell.originalStyle)
+      #self._setCellStyle(self.selectedCell.x, self.selectedCell.y, self.selectedCell.originalStyle)
+      self.gameGrid[self.selectedCell.x][self.selectedCell.y].setStyleSheet(self.selectedCell.originalStyle)
 
     # register the newly selected cell
     self.selectedCell = GUI.SelectedCell(x, y, self.gameGrid[x][y].styleSheet())
 
     # highlight the new cell
-    #self.gameGrid[x][y].setStyleSheet(self.CELL_STYLE_HIGHLIGHTED)
-    self._setCellStyle(x, y, self.CELL_STYLE_HIGHLIGHTED)
+    self.gameGrid[x][y].setStyleSheet(self.CELL_STYLE_HIGHLIGHTED)
+    #self._setCellStyle(x, y, self.CELL_STYLE_HIGHLIGHTED)
 
   def DEP_cellClicked(self, event, x, y):
     """ Called whenever a cell is clicked """
@@ -150,13 +174,13 @@ class GUI(QtCore.QObject):
     # if we already have a selected cell, and the new cell is different, return
     # the previously selected cell back to what it was before
     if self.selectedCell and self.selectedCell.x != x and self.selectedCell.y != y:
-      self._highlightCell(self.selectedCell.x, self.selectedCell.y, self.selectedCell.originalStyle)
+      self._highlightSelectedCell(self.selectedCell.x, self.selectedCell.y, self.selectedCell.originalStyle)
       
     # register the newly selected cell
     self.selectedCell = GUI.SelectedCell(x,y,self.gameGrid[x][y].styleSheet())
     
     # highlight the new cell
-    self._highlightCell(x, y, self.CELL_STYLE_HIGHLIGHTED)
+    self._highlightSelectedCell(x, y, self.CELL_STYLE_HIGHLIGHTED)
     
     """
     # set the current cell to normal
@@ -268,7 +292,7 @@ class GUI(QtCore.QObject):
     # can't click labels...
     #cell.mousePressEvent = lambda event: self._cellClicked(event, x, y)
     #cell.clicked.connect(lambda event: self._cellClicked(event, x, y))
-    cell.mousePressEvent = lambda event: self._highlightCell(x, y)
+    cell.mousePressEvent = lambda event: self._highlightSelectedCell(x, y)
     return cell
 
   
@@ -309,7 +333,8 @@ class GUI(QtCore.QObject):
         self._setCellStyle(row, col, self.CELL_STYLE_NORMAL)
         
         # clear its value
-        self.updateCell(row, col, "")
+        self._setCellValue(row, col, "")
+        
         
   
   def setBoard(self, board):
@@ -329,43 +354,83 @@ class GUI(QtCore.QObject):
     for row in range(rows):
       for column in range(columns):
         val = vals[row][column]
-        
-        # make 0 an empty string
-        if val == 0: val = ""
-        else:        val = str(val)
-        
-        #self.gameGrid[row][column].setText(val)
-        self.updateCell(row, column, val)
+        if val != 0:
+          self._setCellValue(row, column, str(val))
+          self._setCellStyle(row, column, self.CELL_STYLE_INITIAL)
+    
+    # highlight the groups
+    self.highlightGroups()
+    
+  def updateCell(self, x, y):
+    """ Update a single cell and any highlighting that may have changed """
+    
+    newVal = self.board.getCellValue(x,y)
+    
+    # if the value hasn't changed then no need to update anything
+    if newVal == self._getCellValue(x,y):
+      return
+    
+    # set the value of the cell
+    self._setCellValue(x, y, str(newVal))
+    
+    # update the highlighting
+    self.highlightGroups()
   
-  def updateCell(self, x, y, value):
-    """ Update the contents of a single cell"""
+  def _setCellValue(self, x, y, value):
+    """ Update the contents of a single cell """
+    
+    # 0 is blank
+    if value == "0": value = ""
+    
     self.gameGrid[x][y].setText(value)
   
-  
   def _setCellStyle(self, x, y, style):
-    self.gameGrid[x][y].setStyleSheet(style)
+    
+    # if this cell is the currently selected one then change
+    # its recorded "original style", rather than current style
+    if self.selectedCell and self.selectedCell.x == x and self.selectedCell.y == y:
+      self.selectedCell.originalStyle = style
+    else:
+      self.gameGrid[x][y].setStyleSheet(style)
     
   
-  def highlightValidGroups(self, validGroups):
-    """ Highlight the valid groups according to their number """
+  def highlightGroups(self):#, validGroups, invalidGroups, orphanGroups):
+    """ Highlight the valid, invalid and orphan groups """
+
+    validGroups   = self.board.getValidGroups()
+    invalidGroups = self.board.getInvalidGroups()
+    orphanGroups  = self.board.getOrphanGroups()
     
-    for num in range(1,10):
-      
+    # orphan groups
+    for num in range(0, 10):
+  
       # flatten the list of lists of coords into a single list of coords
-      cells  = [x[i] for x in validGroups.get(num, []) for i in range(len(x))]
-      colour = self.__getattribute__("CELL_STYLE_{}".format(num))
-      
+      cells = [x[i] for x in orphanGroups.get(num, []) for i in range(len(x))]
+      #cells = orphanGroups.get(num, [])
+
+      # highlight the groups their specific number colour
+      colour = self.CELL_STYLE_NORMAL
       for cell in cells:
         self._setCellStyle(*cell, colour)
         
-  def highlightInvalidGroups(self, validGroups):
-    """ Highlight invalid groups """
-    
+    # valid groups
     for num in range(1, 10):
     
       # flatten the list of lists of coords into a single list of coords
       cells = [x[i] for x in validGroups.get(num, []) for i in range(len(x))]
+      
+      # highlight the groups their specific number colour
+      colour = self.__getattribute__("CELL_STYLE_{}".format(num))
+      for cell in cells:
+        self._setCellStyle(*cell, colour)
+    
+    
+    # invalid groups
+    for num in range(1, 10):
+  
+      # flatten the list of lists of coords into a single list of coords
+      cells = [x[i] for x in invalidGroups.get(num, []) for i in range(len(x))]
       for cell in cells:
         self._setCellStyle(*cell, self.CELL_STYLE_INVALID)
-  
-  
+        
+        
