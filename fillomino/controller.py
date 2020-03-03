@@ -1,5 +1,7 @@
 import os
 import logging
+import time
+
 logger = logging.getLogger(__name__)
 
 import datetime
@@ -34,11 +36,17 @@ class Controller(object):
     
     # create a blank board
     #self.board = Board(rows=self.rows, columns=self.columns)
+    
     generator = BoardGenerator(rows=self.rows, columns=self.columns)
     self.board, timeTaken = generator.generate()
-    
-    print("Time taken:", timeTaken)
-    
+    """
+    self.debugGen = generator.generate()
+    self.board, timeTaken = next(self.debugGen)
+    self.board, timeTaken = next(self.debugGen)
+    self.board, timeTaken = next(self.debugGen)
+    self.board, timeTaken = next(self.debugGen)
+    self.board, timeTaken = next(self.debugGen)
+    """
     # create a GUI
     self.gui = GUI(self, self.board)
     
@@ -138,11 +146,15 @@ class Controller(object):
   def resetBoard(self):
     """ Reset the board state back to its initial values """
     
+    self.board, timeTaken = next(self.debugGen)
+    
+    """
     # reset the board
     self.board.resetBoard()
-    
+    """
     # update the gui
     self.gui.displayNewBoard(self.board)
+    
     
     # make sure editing is enabled
     self.editingEnabled = True

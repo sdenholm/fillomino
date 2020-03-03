@@ -168,7 +168,7 @@ class Board(object):
     self.updateGroups()
     
     
-  def updateCell(self, x, y, value):
+  def updateCell(self, x, y, value, updateGroups=True):
     """ Update the value of an individual cell """
     
     # can't update initial value cells
@@ -177,7 +177,7 @@ class Board(object):
     
     # update cell and the group info
     self._setCellValue(x, y, value)
-    self.updateGroups()
+    if updateGroups: self.updateGroups()
     
   
   def clearErrors(self):
