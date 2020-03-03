@@ -6,6 +6,65 @@ import numpy as np
 class Board(object):
   
   @staticmethod
+  def getExampleBoard():
+  
+    rows    = 20
+    columns = 20
+    
+    arr = np.zeros((rows, columns), np.int8)
+    arr[0]  = [5,0,0,0,4,1,0,0,0,1,0,0,1,3,0,1,2,1,0,1]
+    arr[1]  = [0,0,4,1,0,6,3,4,1,0,0,0,6,0,1,0,0,4,0,0]
+    arr[2]  = [0,1,0,5,0,0,0,3,0,0,1,0,0,0,2,0,3,0,0,3]
+    arr[3]  = [0,0,5,0,5,0,0,0,0,0,0,8,4,1,0,1,9,0,1,0]
+    arr[4]  = [0,0,0,0,1,4,1,2,1,0,1,0,0,0,1,0,0,0,0,3]
+    arr[5]  = [7,1,9,0,4,0,0,0,0,0,6,0,0,0,7,4,0,1,0,1]
+    arr[6]  = [5,0,0,0,0,0,1,0,0,0,1,5,5,1,8,0,0,4,0,0]
+    arr[7]  = [0,5,5,1,0,0,0,0,5,0,4,5,0,5,0,0,0,1,3,1]
+    arr[8]  = [0,1,0,0,1,5,0,0,1,0,0,0,0,0,0,0,0,0,0,4]
+    arr[9]  = [0,3,0,4,3,3,4,0,0,1,6,0,0,1,5,5,1,0,1,0]
+    arr[10] = [1,9,0,1,3,0,1,0,1,0,0,0,1,0,0,0,8,0,3,1]
+    arr[11] = [0,0,0,0,4,0,4,0,5,1,0,0,0,3,1,0,0,0,1,0]
+    arr[12] = [0,0,0,1,0,0,1,0,0,0,1,7,1,0,3,0,0,3,0,2]
+    arr[13] = [8,0,0,8,6,6,6,6,1,0,0,0,0,0,1,0,0,3,0,0]
+    arr[14] = [1,0,0,0,0,0,0,0,7,0,0,1,0,0,0,0,7,1,0,1]
+    arr[15] = [6,0,1,3,1,7,7,7,0,8,1,0,7,1,8,0,0,5,0,3]
+    arr[16] = [0,0,0,3,0,0,1,0,0,1,7,1,5,0,5,0,0,0,1,0]
+    arr[17] = [1,0,3,1,6,0,0,3,0,6,0,0,0,5,5,0,0,7,0,0]
+    arr[18] = [0,0,0,0,0,6,0,1,0,0,0,0,0,1,0,1,7,0,0,2]
+    arr[19] = [2,1,0,7,0,0,1,0,0,1,0,1,6,0,0,0,0,0,1,0]
+    
+    
+    finalArr = np.array([[5, 5, 4, 4, 4, 1, 4, 4, 4, 1, 6, 6, 1, 3, 3, 1, 2, 1, 4, 1]
+              , [5, 5, 4, 1, 6, 6, 3, 4, 1, 6, 6, 6, 6, 3, 1, 3, 2, 4, 4, 4]
+              , [5, 1, 5, 5, 6, 6, 3, 3, 8, 8, 1, 4, 4, 4, 2, 3, 3, 9, 9, 3]
+              , [7, 7, 5, 5, 5, 6, 6, 8, 8, 8, 8, 8, 4, 1, 2, 1, 9, 9, 1, 3]
+              , [7, 7, 7, 7, 1, 4, 1, 2, 1, 8, 1, 7, 7, 7, 1, 9, 9, 9, 9, 3]
+              , [7, 1, 9, 9, 4, 4, 4, 2, 6, 6, 6, 7, 7, 7, 7, 4, 4, 1, 9, 1]
+              , [5, 5, 9, 9, 9, 9, 1, 6, 6, 6, 1, 5, 5, 1, 8, 8, 4, 4, 3, 3]
+              , [5, 5, 5, 1, 9, 9, 9, 5, 5, 4, 4, 5, 5, 5, 8, 8, 8, 1, 3, 1]
+              , [3, 1, 4, 4, 1, 5, 5, 5, 1, 4, 4, 6, 6, 6, 8, 8, 8, 4, 4, 4]
+              , [3, 3, 4, 4, 3, 3, 4, 4, 4, 1, 6, 6, 6, 1, 5, 5, 1, 3, 1, 4]
+              , [1, 9, 9, 1, 3, 4, 1, 4, 1, 7, 7, 7, 1, 5, 5, 5, 8, 3, 3, 1]
+              , [9, 9, 9, 9, 4, 4, 4, 5, 5, 1, 7, 7, 7, 3, 1, 8, 8, 8, 1, 2]
+              , [9, 9, 9, 1, 6, 6, 1, 5, 5, 5, 1, 7, 1, 3, 3, 8, 8, 3, 3, 2]
+              , [8, 8, 8, 8, 6, 6, 6, 6, 1, 8, 8, 8, 8, 8, 1, 8, 8, 3, 5, 5]
+              , [1, 6, 8, 8, 8, 8, 7, 7, 7, 8, 8, 1, 7, 7, 7, 7, 7, 1, 5, 1]
+              , [6, 6, 1, 3, 1, 7, 7, 7, 7, 8, 1, 7, 7, 1, 8, 8, 8, 5, 5, 3]
+              , [6, 6, 6, 3, 3, 6, 1, 3, 3, 1, 7, 1, 5, 5, 5, 8, 8, 8, 1, 3]
+              , [1, 3, 3, 1, 6, 6, 6, 3, 6, 6, 7, 7, 7, 5, 5, 8, 8, 7, 7, 3]
+              , [2, 3, 7, 7, 7, 6, 6, 1, 6, 6, 7, 7, 6, 1, 6, 1, 7, 7, 7, 2]
+              , [2, 1, 7, 7, 7, 7, 1, 6, 6, 1, 7, 1, 6, 6, 6, 6, 7, 7, 1, 2]])
+    
+    
+    almostComplete = finalArr.copy()
+    almostComplete[19][19] = 0
+    
+    return Board(rows=rows, columns=columns,
+                 initialValues=almostComplete,
+                 finalValues=finalArr,
+                 stats=None)
+    
+  @staticmethod
   def createBoard(rows, columns, initialValuesList, finalValuesList, stats):
     """ Create a board using lists """
     
@@ -79,8 +138,25 @@ class Board(object):
   def getValidGroups(self):   return self.validGroups
   def getInvalidGroups(self): return self.invalidGroups
   def getOrphanGroups(self):  return self.orphanGroups
+  def getBoardDimensions(self): return self.values.shape
   
   
+  def isInitialCell(self, row, column):
+    """ Was this cell initialised with a value """
+    return self.initialValues.item(row, column) != 0
+
+  def isBoardComplete(self):
+    """ Is the board complete """
+  
+    # complete when we have no orphans or invalid groups
+    numOrphans = np.sum([len(v) for _, v in self.getOrphanGroups().items()])
+    numInvalid = np.sum([len(v) for _, v in self.getInvalidGroups().items()])
+    return numOrphans == numInvalid == 0
+  
+  def isBoardValid(self):
+    """ Does the board have no invalid groups """
+    numInvalid = np.sum([len(v) for _, v in self.getInvalidGroups().items()])
+    return numInvalid == 0
   
   def resetBoard(self):
     """ Resets the board to its initial values """
@@ -102,13 +178,14 @@ class Board(object):
     # update cell and the group info
     self._setCellValue(x, y, value)
     self.updateGroups()
-  
-  
+    
   
   def clearErrors(self):
     """
     # Find the differences between the current and final values and set any differences to 0
     """
+    
+    #print(self.values)
     
     # no final values to compare to
     if self.finalValues is None:
@@ -128,8 +205,11 @@ class Board(object):
     
     
   def _setCellValue(self, x, y, value):
+    """ Set the value of an individual cell """
     self.values[x][y] = int(value)
-  
+
+
+
   def updateGroups(self):
     """
     # Group all of the board cells into groups
@@ -145,7 +225,7 @@ class Board(object):
     
     processedLocations = []
     
-    # look a t each cell
+    # look at each cell
     for row in range(self.rows):
       for col in range(self.columns):
         

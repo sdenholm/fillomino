@@ -34,40 +34,47 @@ class GUI(QtCore.QObject):
     
     ######################################
     
-    defaultCellStyle = "border-style: outset; border-width: 1px; border-color: black;"
-    self.CELL_STYLE_INITIAL     = defaultCellStyle + "border-color: red; background: white;"
-    self.CELL_STYLE_NORMAL      = defaultCellStyle + "background: white;" #border-color: black;
-    #self.CELL_STYLE_HIGHLIGHTED = "border-color: yellow; background: yellow;"
-    self.CELL_STYLE_HIGHLIGHTED = "background: yellow;"
-
-    self.CELL_STYLE_1 = defaultCellStyle+"background: salmon;"
-    self.CELL_STYLE_2 = defaultCellStyle+"background: moccasin;"
-    self.CELL_STYLE_3 = defaultCellStyle+"background: coral;"
-    self.CELL_STYLE_4 = defaultCellStyle+"background: khaki;"
-    self.CELL_STYLE_5 = defaultCellStyle+"background: lightgreen;"
-    self.CELL_STYLE_6 = defaultCellStyle+"background: aquamarine;"
-    self.CELL_STYLE_7 = defaultCellStyle+"background: paleturquoise;"
-    self.CELL_STYLE_8 = defaultCellStyle+"background: lightblue;"
-    self.CELL_STYLE_9 = defaultCellStyle+"background: thistle;"
+    # text styles
+    #  -initial are underlined, others are normal
+    self.TEXT_STYLE_NORMAL  = ""
+    self.TEXT_STYLE_INITIAL = " text-decoration: underline; "
     
+    # cell styles
+    defaultCellStyle = "border-style: outset; border-width: 1px; border-color: black; "
+    self.CELL_STYLE_INITIAL     = defaultCellStyle + " background: linen; "
+    self.CELL_STYLE_NORMAL      = defaultCellStyle + " background: white; "
+    self.CELL_STYLE_HIGHLIGHTED = defaultCellStyle + " background: yellow; "
+    
+    # group cell styles
+    self.CELL_STYLE_1 = defaultCellStyle+"background: powderblue;"
+    self.CELL_STYLE_2 = defaultCellStyle+"background: cornsilk;"
+    self.CELL_STYLE_3 = defaultCellStyle+"background: khaki;"
+    self.CELL_STYLE_4 = defaultCellStyle+"background: lightskyblue;"
+    self.CELL_STYLE_5 = defaultCellStyle+"background: aquamarine;"
+    self.CELL_STYLE_6 = defaultCellStyle+"background: thistle;"
+    self.CELL_STYLE_7 = defaultCellStyle+"background: moccasin;"
+    self.CELL_STYLE_8 = defaultCellStyle+"background: lightsteelblue;"
+    self.CELL_STYLE_9 = defaultCellStyle+"background: palegreen;"
+    
+    # invalid group styles
     self.CELL_STYLE_INVALID = defaultCellStyle+"background: crimson;"
     
     #############################
     
-    self.DELETE_KEY      = 16777223
+    # backspace and delete
+    self.DELETE_KEY_LIST = [16777219, 16777223]
+    
+    # 1 to 9
     self.NUMBER_KEY_LIST = list(range(49, 58))
+    
+    # 87: w
+    # 65: a
+    # 83: s
+    # 68: d
     
     ################
     
-    ###self.funcCall.connect(self.entryUpdated)
     
-    # dictionary of all of the function timers we add
-    #self.timers = {}
-    
-    # dictionary of all of our info widgets
-    #self.widgets = {}
-    
-    #self.currentRow = 0
     
     # =========================================================================
     # GUI
@@ -78,7 +85,7 @@ class GUI(QtCore.QObject):
     self.mainWindow = QtWidgets.QWidget()
     
     # set window size and title
-    self.mainWindow.resize(600, 600)
+    self.mainWindow.resize(700, 700)
     self.mainWindow.setWindowTitle("Fillomino v0.1")
 
     self.mainWindow.keyPressEvent = self._keyPressed
@@ -103,13 +110,13 @@ class GUI(QtCore.QObject):
     # =========================================================================
     
     self.selectedCell = None
-    #self.currentCell = None
+    
 
     self.controller = controller
-    self.board      = board
+    self.board      = None
     
     # set and display the board
-    self.setBoard(board)
+    self.displayNewBoard(board)
 
   def _getCellValue(self, x, y):
     val = self.gameGrid[x][y].text()
@@ -123,11 +130,11 @@ class GUI(QtCore.QObject):
     key = event.key()
     
     # ignore anything that's not a number 1-9 or delete
-    if key != self.DELETE_KEY and key not in self.NUMBER_KEY_LIST:
+    if key not in self.DELETE_KEY_LIST and key not in self.NUMBER_KEY_LIST:
       return
     
     # convert the key pressed to its value (delete is 0)
-    if key == self.DELETE_KEY:
+    if key in self.DELETE_KEY_LIST:
       key = "0"
     else:
       key = chr(key)
@@ -286,7 +293,7 @@ class GUI(QtCore.QObject):
     
     font = QtGui.QFont()
     #font.setFamily("FreeMono")
-    font.setPointSize(14)
+    font.setPointSize(16)
     cell.setFont(font)
     
     # can't click labels...
@@ -299,17 +306,23 @@ class GUI(QtCore.QObject):
   def _createControls(self):
     """ Create the control buttons at the bottom of the window """
   
-    controlsGrid = QtWidgets.QGridLayout()
-    controlsGrid.setAlignment(QtCore.Qt.AlignLeft)
+    controlsGrid = QtWidgets.QHBoxLayout()# QGridLayout()
+    #controlsGrid.setAlignment(QtCore.Qt.AlignLeft)
     
     button = QtWidgets.QPushButton("Clear Errors")
     button.clicked.connect(self._controlClicked)
-    controlsGrid.addWidget(button, 0, 0)
+    controlsGrid.addWidget(button)#, 0, 0)
 
     button = QtWidgets.QPushButton("Reset")
     button.clicked.connect(self._controlClicked)
-    controlsGrid.addWidget(button, 0, 1)
+    controlsGrid.addWidget(button)#, 0, 1)
 
+    controlsGrid.insertStretch(2,10)
+    
+    self.statusText = QtWidgets.QLabel("")
+    self.statusText.setStyleSheet("font: 14pt; color: darkgreen; ")
+    controlsGrid.addWidget(self.statusText)#, 0, 100)
+    
     return controlsGrid
   
   # display the gui
@@ -320,7 +333,7 @@ class GUI(QtCore.QObject):
 
   
   def _clearBoard(self):
-    """  """
+    """ Clear the board and reset any messages or statuses """
 
     # get the dimensions of the board
     rows, columns = self.board.getValues().shape
@@ -334,17 +347,30 @@ class GUI(QtCore.QObject):
         
         # clear its value
         self._setCellValue(row, col, "")
-        
-        
-  
-  def setBoard(self, board):
-    """ Store the board and display it """
     
-    # clear any past boards
-    self._clearBoard()
+    # clear the status text
+    self._setStatusText("")
+    
+        
+  def _setStatusText(self, text):
+    self.statusText.setText(text)
+  
+  def boardComplete(self):
+    """ Board is complete """
+    
+    # display finished message
+    self._setStatusText("BOARD COMPLETE!")
+    
+  
+  
+  def displayNewBoard(self, board):
+    """ Store the board and display it """
     
     # remember this new board
     self.board = board
+    
+    # clear any past boards
+    self._clearBoard()
     
     # get the values and dimensions of the board
     vals = board.getValues()
@@ -360,6 +386,7 @@ class GUI(QtCore.QObject):
     
     # highlight the groups
     self.highlightGroups()
+    
     
   def updateCell(self, x, y):
     """ Update a single cell and any highlighting that may have changed """
@@ -408,10 +435,14 @@ class GUI(QtCore.QObject):
       cells = [x[i] for x in orphanGroups.get(num, []) for i in range(len(x))]
       #cells = orphanGroups.get(num, [])
 
-      # highlight the groups their specific number colour
-      colour = self.CELL_STYLE_NORMAL
+      # highlight the un-grouped cell groups their specific number colour
       for cell in cells:
-        self._setCellStyle(*cell, colour)
+  
+        # initial cells are styled differently to normal cells
+        if self.board.isInitialCell(*cell):
+          self._setCellStyle(*cell, self.TEXT_STYLE_INITIAL + self.CELL_STYLE_INITIAL)
+        else:
+          self._setCellStyle(*cell, self.TEXT_STYLE_NORMAL + self.CELL_STYLE_NORMAL)
         
     # valid groups
     for num in range(1, 10):
@@ -420,9 +451,14 @@ class GUI(QtCore.QObject):
       cells = [x[i] for x in validGroups.get(num, []) for i in range(len(x))]
       
       # highlight the groups their specific number colour
-      colour = self.__getattribute__("CELL_STYLE_{}".format(num))
+      cellStyle = self.__getattribute__("CELL_STYLE_{}".format(num))
       for cell in cells:
-        self._setCellStyle(*cell, colour)
+        
+        # initial cells are styled differently to normal cells
+        if self.board.isInitialCell(*cell):
+          self._setCellStyle(*cell, self.TEXT_STYLE_INITIAL + cellStyle)
+        else:
+          self._setCellStyle(*cell, self.TEXT_STYLE_NORMAL + cellStyle)
     
     
     # invalid groups
@@ -431,6 +467,11 @@ class GUI(QtCore.QObject):
       # flatten the list of lists of coords into a single list of coords
       cells = [x[i] for x in invalidGroups.get(num, []) for i in range(len(x))]
       for cell in cells:
-        self._setCellStyle(*cell, self.CELL_STYLE_INVALID)
+        
+        # initial cells are styled differently to normal cells
+        if self.board.isInitialCell(*cell):
+          self._setCellStyle(*cell, self.TEXT_STYLE_INITIAL + self.CELL_STYLE_INVALID)
+        else:
+          self._setCellStyle(*cell, self.TEXT_STYLE_NORMAL + self.CELL_STYLE_INVALID)
         
         
