@@ -35,8 +35,9 @@ class Controller(object):
     # create a blank board
     #self.board = Board(rows=self.rows, columns=self.columns)
     generator = BoardGenerator(rows=self.rows, columns=self.columns)
-    self.board = generator.generate()
+    self.board, timeTaken = generator.generate()
     
+    print("Time taken:", timeTaken)
     
     # create a GUI
     self.gui = GUI(self, self.board)
