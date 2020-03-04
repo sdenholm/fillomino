@@ -21,42 +21,35 @@ class DatabaseSetup(object):
     db.connect()
     
     # create the tables
-    for tableDefinition in DatabaseSetup.getBoardTables():
+    for rows, columns in [(10, 10), (15,15), (20,20)]:
+      tableDefinition = DatabaseSetup.getBoardTableDefinition(rows, columns)
       db._executeCommand(tableDefinition)
     
     # close the database connection
     db.close()
   
   @staticmethod
-  def getBoardTables():
-    """ SQL table definitions """
+  def getBoardTableDefinition(rows, columns):
+    """ SQL table definition for a board table """
     
-    boardLayouts = [
-      (10,10),
-      (20,20)
-    ]
+    # id:            unique ID for this board
+    # initial_board: layout for unsolved board
+    # final_board:   layout for solved board
+    # creation_date  date board was created
+    # stats:         miscellaneous board stats
+    #
+    definition = """
+      create table IF NOT EXISTS boards{}x{}(
+        id            INT UNSIGNED,
+        initial_board JSON,
+        final_board   JSON,
+        creation_date DATETIME,
+        stats         JSON,
+        PRIMARY KEY (id)
+      );
+    """.format(rows, columns)
     
-    definitions = []
-    
-    for rows, columns in boardLayouts:
-      # ticker:              ticker symbol
-      # stock_exchange:      Stock exchange this instrument uses via the broker
-      # conversion_factor:   factor to divide table prices by to get the actual prices (table values are stored as ints)
-      # instrument_id:       id matching the instrument in the INSTRUMENTS table
-      # name:                name for this instrument
-      #
-      definition = """
-        create table IF NOT EXISTS boards{}x{}(
-          id            INT UNSIGNED,
-          initial_board JSON,
-          final_board   JSON,
-          stats         JSON,
-          PRIMARY KEY (id)
-        );
-      """.format(rows, columns)
-      definitions.append(definition)
-    
-    return definitions
+    return definition
     
 class Database(object):
   
@@ -68,7 +61,7 @@ class Database(object):
     self.cursor = None
   
   def __del__(self):
-    if self.conn:
+    if self.conn is not None and self.conn.is_connected():
       self.close()
   
   def connect(self):
@@ -87,6 +80,8 @@ class Database(object):
     
     
   def loadRandomBoard(self, rows, columns):
+    """ Retrieve a random <rows> x <columns> board from the database and return it """
+    
     cmd  = """SELECT * FROM boards{}x{} ORDER BY RANDOM() LIMIT 1""".format(rows, columns)
     ret = self._executeCommand(cmd)
     
@@ -98,12 +93,13 @@ class Database(object):
       "id":           board[0],
       "initialBoard": json.loads(board[1]),
       "finalBoard":   json.loads(board[2]),
-      "stats":        json.loads(board[3])
+      "creationDate": json.loads(board[3]),
+      "stats":        json.loads(board[4])
     }
     
   
   def loadBoard(self, rows, columns, boardID):
-    """ Load a board from the rows x columns table with the given id """
+    """ Load a board from the <rows> x <columns> table with the given ID """
     
     # get the board
     cmd = """SELECT * FROM boards{}x{} WHERE id = {};""".format(rows, columns, boardID)
@@ -118,12 +114,13 @@ class Database(object):
         "id":           board[0],
         "initialBoard": json.loads(board[1]),
         "finalBoard":   json.loads(board[2]),
-        "stats":        json.loads(board[3])
+        "creationDate": json.loads(board[3]),
+        "stats":        json.loads(board[4])
       }
   
   
-  def storeBoard(self, rows, columns, boardID, initialBoard, finalBoard, stats):
-    """ Store a board in the rows x columns table """
+  def storeBoard(self, rows, columns, boardID, initialBoard, finalBoard, creationDate, stats):
+    """ Store a board in the <rows> x <columns> table """
   
     # get the board with the given boardID to see if it already exists
     cmd  = """SELECT * FROM boards{}x{} WHERE id = {};""".format(rows, columns, boardID)
@@ -134,14 +131,17 @@ class Database(object):
       raise SystemError("Board with id {} already exists".format(boardID))
     
     # insert the new board
-    cmd = """INSERT INTO boards{}x{}(id, initial_board, final_board, stats) VALUES({},'{}','{}','{}')"""\
+    cmd  = """INSERT INTO boards{}x{}(id, initial_board, final_board, creation_date, stats) """
+    cmd += """VALUES({},'{}','{}','{}')"""\
           .format(rows,
                   columns,
                   boardID,
                   json.dumps(initialBoard),
                   json.dumps(finalBoard),
+                  json.dumps(creationDate),
                   json.dumps(stats))
     self._executeCommand(cmd)
+    
     return self.cursor.lastrowid
 
   

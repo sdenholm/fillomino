@@ -21,8 +21,8 @@ class Controller(object):
   def __init__(self, databaseLoc):
     
     # default rows
-    self.rows    = 25# 20
-    self.columns = 35#20
+    self.rows    = 15#20
+    self.columns = 15#20
     
     # make sure there is a board database
     if not os.path.exists(databaseLoc):
@@ -42,7 +42,6 @@ class Controller(object):
     self.gui = GUI(self, self.board)
     
     
-    
   def loadBoard(self, rows, columns, boardID=None):
     """
     # For the given dimensions, either load in a random board or the board
@@ -56,6 +55,7 @@ class Controller(object):
       boardInfo = 777
       if boardInfo is None:
         raise SystemError("Failed to load a random {}x{} board".format(rows, columns))
+      
       
     # load in a specific board's info
     else:

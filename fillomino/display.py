@@ -28,12 +28,28 @@ class GUI(QtCore.QObject):
   
   # initial setup
   def __init__(self, controller, board):
-    """ Setup the main window """
+    """ GUI initialisation """
     
-    QtCore.QObject.__init__(self)
+    super().__init__()
     
-    ######################################
+    # references to controller and the board to display
+    self.controller = controller
+    self.board      = None
     
+    # highlighted/selected cell
+    self.selectedCell = None
+    
+    # get boad dimensions
+    rows, columns = board.getBoardDimensions()
+    
+
+
+    
+
+    ###########################################################################
+    # define stylesheets for text and the game cells
+    ###########################################################################
+
     # text styles
     #  -initial are underlined, others are normal
     self.TEXT_STYLE_NORMAL  = ""
@@ -59,8 +75,12 @@ class GUI(QtCore.QObject):
     # invalid group styles
     self.CELL_STYLE_INVALID = defaultCellStyle+"background: crimson;"
     
-    #############################
     
+    ###########################################################################
+    # define keys
+    ###########################################################################
+    
+
     # backspace and delete
     self.DELETE_KEY_LIST = [16777219, 16777223]
     
@@ -71,26 +91,23 @@ class GUI(QtCore.QObject):
     # 65: a
     # 83: s
     # 68: d
+
+    ###########################################################################
+    # create the GUI
+    ###########################################################################
+
     
-    ################
-    
-    
-    
-    # =========================================================================
-    # GUI
-    # =========================================================================
     
     # application object
     self.app = QtWidgets.QApplication(sys.argv)
     self.mainWindow = QtWidgets.QWidget()
     
     # set window size and title
-    self.mainWindow.resize(700, 700)
+    self.mainWindow.resize(35*rows, 35*columns)
     self.mainWindow.setWindowTitle("Fillomino v0.1")
-
-    self.mainWindow.keyPressEvent = self._keyPressed
     
-    #cell.mousePressEvent = lambda event: self._cellClicked(event, x, y)
+    # register function for keyboard presses
+    self.mainWindow.keyPressEvent = self._keyPressed
     
     # use a box layout for the other layouts
     self.mainLayout = QtWidgets.QVBoxLayout()
@@ -101,25 +118,23 @@ class GUI(QtCore.QObject):
     self.mainLayout.addLayout(menuLayout, 1)
     
     # game grid
-    rows, columns = board.getBoardDimensions()
     self.gameGrid, gridLayout = self._createGrid(rows=rows, columns=columns)
-    self.mainLayout.addLayout(gridLayout, 100)
+    self.mainLayout.addLayout(gridLayout, 1000)
     
     # controls
     self.controls = self._createControls()
     self.mainLayout.addLayout(self.controls, 1)
-    # =========================================================================
     
-    self.selectedCell = None
+    ###########################################################################
     
-
-    self.controller = controller
-    self.board      = None
     
     # set and display the board
     self.displayNewBoard(board)
+    
 
   def _getCellValue(self, x, y):
+    """ Return the value we are currently showing for this game cell """
+    
     val = self.gameGrid[x][y].text()
     if val == "":
       return 0
@@ -127,6 +142,7 @@ class GUI(QtCore.QObject):
       return int(val)
   
   def _keyPressed(self, event):
+    """ Called when the user presses a key """
   
     key = event.key()
     
@@ -136,26 +152,22 @@ class GUI(QtCore.QObject):
     
     # convert the key pressed to its value (delete is 0)
     if key in self.DELETE_KEY_LIST:
-      key = "0"
+      key = 0
     else:
-      key = chr(key)
+      key = int(chr(key))
     
     # if we have a selected cell then update it
     if self.selectedCell:
       self.controller.updateBoard(x=self.selectedCell.x,
                                   y=self.selectedCell.y,
                                   value=key)
-    
-    ## set the current cell to this number
-    #if self.currentCell:
-    #  self.currentCell.setText(chr(key))
   
   
     
   
   def _highlightSelectedCell(self, x, y):
     """
-    # Highlight the given cell and return the previously highlighted cell
+    # Highlight the given cell and revert the previously highlighted cell
     # to what it was before
     #  -NOTE: can't use _setCellStyle as this ignores selected cell highlighting
     """
@@ -177,44 +189,35 @@ class GUI(QtCore.QObject):
     self._setStatusText("{}x{}".format(x,y))
     #self._setCellStyle(x, y, self.CELL_STYLE_HIGHLIGHTED)
 
-  def DEP_cellClicked(self, event, x, y):
-    """ Called whenever a cell is clicked """
-    
-    # if we already have a selected cell, and the new cell is different, return
-    # the previously selected cell back to what it was before
-    if self.selectedCell and self.selectedCell.x != x and self.selectedCell.y != y:
-      self._highlightSelectedCell(self.selectedCell.x, self.selectedCell.y, self.selectedCell.originalStyle)
-      
-    # register the newly selected cell
-    self.selectedCell = GUI.SelectedCell(x,y,self.gameGrid[x][y].styleSheet())
-    
-    # highlight the new cell
-    self._highlightSelectedCell(x, y, self.CELL_STYLE_HIGHLIGHTED)
-    
-    """
-    # set the current cell to normal
-    if self.currentCellCoords:
-      #self.currentCell.setStyleSheet(GUI.CELL_STYLE_NORMAL)
-      self._highlightCell(*self.currentCellCoords, GUI.CELL_STYLE_NORMAL)
-      
-    # make this cell the current cell
-    self.currentCellCoords = (x, y)
-    self._highlightCell(*self.currentCellCoords, GUI.CELL_STYLE_HIGHLIGHTED)
-    #self.currentCell = self.gameGrid[x][y]
-    #self.gameGrid[x][y].setStyleSheet(GUI.CELL_STYLE_HIGHLIGHTED)
-    """
 
   def _controlClicked(self):
     """ Called whenever a control button is pressed """
-
-    controlAction = self.sender()
     
+    genDialog = GeneratorDialog(self.mainWindow)
+    genDialog.show()
+    genDialog.exec_()
+    
+    return
+    #app = QtWidgets.QApplication(sys.argv)
+    Dialog = QtWidgets.QDialog(self.mainWindow)
+    ui = Ui_Dialog()
+    ui.setupUi(Dialog)
+    Dialog.show()
+    Dialog.exec_()
+    #app.exec_()
+    
+    return
+    
+    buttonText = self.sender().text()
+    
+    # when the <x> button is pressed, call function:
     controlMap = {
-      "Reset": self.controller.resetBoard,
+      "Reset":        self.controller.resetBoard,
       "Clear Errors": self.controller.clearErrors
     }
     
-    action = controlMap.get(controlAction.text(), None)
+    # if we have a function for this button, call it
+    action = controlMap.get(buttonText, None)
     if action is not None:
       action()
   
@@ -222,17 +225,20 @@ class GUI(QtCore.QObject):
   def _menuClicked(self):
     """ Called whenever a menu item is clicked """
     
-    menuAction = self.sender()
+    menuText = self.sender().text()
     
+    # functino to call for each menu option
     actionMap = {
-      "New":   self.controller.newBoard,
-      "Save":  lambda: print("Save"),
-      "Load":  lambda: print("Load"),
-      "Quit":  sys.exit,
-      "About": lambda: print("About"),
+      "New":         self.controller.newBoard,
+      "Save":        lambda: print("Save"),
+      "Load":        lambda: print("Load"),
+      "Quit":        sys.exit,
+      "How to Play": lambda: print("How to Play"),
+      "About":       lambda: print("About"),
     }
     
-    action = actionMap.get(menuAction.text(), None)
+    # call menu function
+    action = actionMap.get(menuText, None)
     if action is not None:
       action()
     
@@ -259,7 +265,8 @@ class GUI(QtCore.QObject):
     
     # help
     helpMenu = menubar.addMenu("Help")
-    helpMenu.addAction("About",  self._menuClicked)
+    helpMenu.addAction("How to Play", self._menuClicked)
+    helpMenu.addAction("About",       self._menuClicked)
     
     return menuLayout
   
@@ -267,49 +274,45 @@ class GUI(QtCore.QObject):
   def _createGrid(self, rows, columns):
     """ Create the number grid, composed of individual cells """
     
+    # grid layout for grid...
     gridLayout = QtWidgets.QGridLayout()
     gridLayout.setSpacing(0)
-  
-    #options = [""] + [str(x) for x in range(1, 10)]
-  
+    
+    # create a grid of rows x columns cells
     grid = {}
     for x in range(rows):
       grid[x] = {}
       for y in range(columns):
-        #grid[x][y] = self._createCell(np.random.choice(options), x, y)
         grid[x][y] = self._createCell("", x, y)
         gridLayout.addWidget(grid[x][y], x, y)
         
     return grid, gridLayout
   
-
-  #@staticmethod
+  
   def _createCell(self, contents, x, y):
     """ Create an individual grid cell """
-
+    
+    # cell is a label
     cell = QtWidgets.QLabel(contents)
     cell.setAlignment(QtCore.Qt.AlignCenter)
     cell.setScaledContents(True)
-    # cell.setStyleSheet("margin-left: 10px; border-radius: 25px; background: white; color: #4A0C46;")
-    cell.setStyleSheet(self.CELL_STYLE_NORMAL)#"border-style: outset; border-width: 1px; border-color: black; background: white;")
+    cell.setStyleSheet(self.CELL_STYLE_NORMAL)
     
+    # font for cell text
     font = QtGui.QFont()
-    #font.setFamily("FreeMono")
     font.setPointSize(16)
     cell.setFont(font)
     
-    # can't click labels...
-    #cell.mousePressEvent = lambda event: self._cellClicked(event, x, y)
-    #cell.clicked.connect(lambda event: self._cellClicked(event, x, y))
+    # can't "click" labels, so register a click with a mouse event
     cell.mousePressEvent = lambda event: self._highlightSelectedCell(x, y)
     return cell
 
   
   def _createControls(self):
     """ Create the control buttons at the bottom of the window """
-  
-    controlsGrid = QtWidgets.QHBoxLayout()# QGridLayout()
-    #controlsGrid.setAlignment(QtCore.Qt.AlignLeft)
+    
+    # horizontal layout
+    controlsGrid = QtWidgets.QHBoxLayout()
     
     button = QtWidgets.QPushButton("Clear Errors")
     button.clicked.connect(self._controlClicked)
@@ -321,21 +324,24 @@ class GUI(QtCore.QObject):
 
     controlsGrid.insertStretch(2,10)
     
+    # get an outside reference to the status text as we will want to
+    # update it later
     self.statusText = QtWidgets.QLabel("")
     self.statusText.setStyleSheet("font: 14pt; color: darkgreen; ")
-    controlsGrid.addWidget(self.statusText)#, 0, 100)
+    controlsGrid.addWidget(self.statusText)
     
     return controlsGrid
   
-  # display the gui
+  
   def run(self):
     """ Enter the main loop of the GUI """
+    
     self.mainWindow.show()
     sys.exit(self.app.exec_())
 
   
   def _clearBoard(self):
-    """ Clear the board and reset any messages or statuses """
+    """ Clear the board grid and reset any messages or statuses """
 
     # get the dimensions of the board
     rows, columns = self.board.getValues().shape
@@ -347,7 +353,7 @@ class GUI(QtCore.QObject):
         # set cell colours back to default
         self._setCellStyle(row, col, self.CELL_STYLE_NORMAL)
         
-        # clear its value
+        # clear the cell value
         self._setCellValue(row, col, "")
     
     # clear the status text
@@ -366,7 +372,7 @@ class GUI(QtCore.QObject):
   
   
   def displayNewBoard(self, board):
-    """ Store the board and display it """
+    """ Register the new board and display it on the game grid"""
     
     # remember this new board
     self.board = board
@@ -375,13 +381,12 @@ class GUI(QtCore.QObject):
     self._clearBoard()
     
     # get the values and dimensions of the board
-    vals = board.getValues()
-    rows, columns = vals.shape
+    rows, columns = board.getBoardDimensions()
     
-    # set the value for each cell
+    # set the value for each initial cell
     for row in range(rows):
       for column in range(columns):
-        val = vals[row][column]
+        val = board.getCellValue(row, column)
         if val != 0:
           self._setCellValue(row, column, str(val))
           self._setCellStyle(row, column, self.CELL_STYLE_INITIAL)
@@ -405,6 +410,7 @@ class GUI(QtCore.QObject):
     # update the highlighting
     self.highlightGroups()
   
+  
   def _setCellValue(self, x, y, value):
     """ Update the contents of a single cell """
     
@@ -414,8 +420,9 @@ class GUI(QtCore.QObject):
     self.gameGrid[x][y].setText(value)
   
   def _setCellStyle(self, x, y, style):
+    """ Set the style of an individual cell in the game grid """
     
-    # if this cell is the currently selected one then change
+    # if this cell is the currently selected one, then change
     # its recorded "original style", rather than current style
     if self.selectedCell and self.selectedCell.x == x and self.selectedCell.y == y:
       self.selectedCell.originalStyle = style
@@ -423,7 +430,7 @@ class GUI(QtCore.QObject):
       self.gameGrid[x][y].setStyleSheet(style)
     
   
-  def highlightGroups(self):#, validGroups, invalidGroups, orphanGroups):
+  def highlightGroups(self):
     """ Highlight the valid, invalid and orphan groups """
 
     validGroups   = self.board.getValidGroups()
@@ -435,9 +442,9 @@ class GUI(QtCore.QObject):
   
       # flatten the list of lists of coords into a single list of coords
       cells = [x[i] for x in orphanGroups.get(num, []) for i in range(len(x))]
-      #cells = orphanGroups.get(num, [])
 
-      # highlight the un-grouped cell groups their specific number colour
+      # highlight the un-grouped cell groups based on whether they are initial
+      # cells or not
       for cell in cells:
   
         # initial cells are styled differently to normal cells
@@ -445,7 +452,8 @@ class GUI(QtCore.QObject):
           self._setCellStyle(*cell, self.TEXT_STYLE_INITIAL + self.CELL_STYLE_INITIAL)
         else:
           self._setCellStyle(*cell, self.TEXT_STYLE_NORMAL + self.CELL_STYLE_NORMAL)
-        
+    
+    
     # valid groups
     for num in range(1, 10):
     
@@ -475,5 +483,176 @@ class GUI(QtCore.QObject):
           self._setCellStyle(*cell, self.TEXT_STYLE_INITIAL + self.CELL_STYLE_INVALID)
         else:
           self._setCellStyle(*cell, self.TEXT_STYLE_NORMAL + self.CELL_STYLE_INVALID)
-        
-        
+
+class Ui_Dialog(object):
+  
+  def setupUi(self, Dialog):
+    Dialog.setObjectName("Dialog")
+    Dialog.resize(506, 424)
+    self.verticalLayout_2 = QtWidgets.QVBoxLayout(Dialog)
+    self.verticalLayout_2.setObjectName("verticalLayout_2")
+    self.verticalLayout = QtWidgets.QVBoxLayout()
+    self.verticalLayout.setObjectName("verticalLayout")
+    self.horizontalLayout = QtWidgets.QHBoxLayout()
+    self.horizontalLayout.setObjectName("horizontalLayout")
+    self.textEdit = QtWidgets.QTextEdit(Dialog)
+    self.textEdit.setObjectName("textEdit")
+    self.horizontalLayout.addWidget(self.textEdit)
+    self.label = QtWidgets.QLabel(Dialog)
+    self.label.setObjectName("label")
+    self.horizontalLayout.addWidget(self.label)
+    self.textEdit_2 = QtWidgets.QTextEdit(Dialog)
+    self.textEdit_2.setObjectName("textEdit_2")
+    self.horizontalLayout.addWidget(self.textEdit_2)
+    self.verticalLayout.addLayout(self.horizontalLayout)
+    spacerItem = QtWidgets.QSpacerItem(20, 800, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
+    self.verticalLayout.addItem(spacerItem)
+    self.label_3 = QtWidgets.QLabel(Dialog)
+    self.label_3.setText("")
+    self.label_3.setObjectName("label_3")
+    self.verticalLayout.addWidget(self.label_3)
+    self.progressBar = QtWidgets.QProgressBar(Dialog)
+    self.progressBar.setProperty("value", 24)
+    self.progressBar.setObjectName("progressBar")
+    self.verticalLayout.addWidget(self.progressBar)
+    self.label_2 = QtWidgets.QLabel(Dialog)
+    self.label_2.setObjectName("label_2")
+    self.verticalLayout.addWidget(self.label_2)
+    self.verticalLayout.setStretch(2, 10000)
+    self.verticalLayout_2.addLayout(self.verticalLayout)
+  
+    _translate = QtCore.QCoreApplication.translate
+    Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
+    self.label.setText(_translate("Dialog", "TextLabel"))
+    self.label_2.setText(_translate("Dialog", "TextLabel"))
+    QtCore.QMetaObject.connectSlotsByName(Dialog)
+
+class GeneratorDialog(QtWidgets.QDialog):
+  
+  def __init__(self, *args, **kwargs):
+    super().__init__(*args, **kwargs)
+    self.setModal(True)
+    
+    self.setObjectName("Dialog")
+    #self.resize(309, 220)
+    self.resize(25, 15)
+    
+    verticalLayout_3 = QtWidgets.QVBoxLayout(self)
+    verticalLayout_3.setObjectName("verticalLayout_3")
+    verticalLayout_2 = QtWidgets.QVBoxLayout()
+    verticalLayout_2.setObjectName("verticalLayout_2")
+    horizontalWidget_2 = QtWidgets.QWidget(self)
+    horizontalWidget_2.setObjectName("horizontalWidget_2")
+    horizontalLayout_3 = QtWidgets.QHBoxLayout(horizontalWidget_2)
+    horizontalLayout_3.setObjectName("horizontalLayout_3")
+    horizontalWidget = QtWidgets.QWidget(horizontalWidget_2)
+    horizontalWidget.setObjectName("horizontalWidget")
+    horizontalLayout = QtWidgets.QHBoxLayout(horizontalWidget)
+    horizontalLayout.setObjectName("horizontalLayout")
+    spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout.addItem(spacerItem)
+    lineEdit = QtWidgets.QLineEdit(horizontalWidget)
+    lineEdit.setObjectName("lineEdit")
+    horizontalLayout.addWidget(lineEdit)
+    label = QtWidgets.QLabel(horizontalWidget)
+    label.setObjectName("label")
+    horizontalLayout.addWidget(label)
+    lineEdit_2 = QtWidgets.QLineEdit(horizontalWidget)
+    lineEdit_2.setObjectName("lineEdit_2")
+    horizontalLayout.addWidget(lineEdit_2)
+    spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout.addItem(spacerItem1)
+    verticalWidget = QtWidgets.QWidget(horizontalWidget)
+    verticalWidget.setObjectName("verticalWidget")
+    verticalLayout = QtWidgets.QVBoxLayout(verticalWidget)
+    verticalLayout.setObjectName("verticalLayout")
+    spacerItem2 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
+    verticalLayout.addItem(spacerItem2)
+    label_4 = QtWidgets.QLabel(verticalWidget)
+    label_4.setAlignment(QtCore.Qt.AlignCenter)
+    label_4.setObjectName("label_4")
+    verticalLayout.addWidget(label_4)
+    horizontalLayout_2 = QtWidgets.QHBoxLayout()
+    horizontalLayout_2.setObjectName("horizontalLayout_2")
+    spacerItem3 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout_2.addItem(spacerItem3)
+    label_5 = QtWidgets.QLabel(verticalWidget)
+    label_5.setStyleSheet("background: white; border-style: outset; border-width: 1px; border-color: black;")
+    label_5.setAlignment(QtCore.Qt.AlignCenter)
+    label_5.setObjectName("label_5")
+    horizontalLayout_2.addWidget(label_5)
+    spacerItem4 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout_2.addItem(spacerItem4)
+    verticalLayout.addLayout(horizontalLayout_2)
+    horizontalLayout.addWidget(verticalWidget)
+    spacerItem5 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout.addItem(spacerItem5)
+    horizontalLayout.setStretch(0, 1000)
+    horizontalLayout.setStretch(1, 1)
+    horizontalLayout.setStretch(2, 1)
+    horizontalLayout.setStretch(3, 1)
+    horizontalLayout.setStretch(6, 1000)
+    horizontalLayout_3.addWidget(horizontalWidget)
+    verticalLayout_2.addWidget(horizontalWidget_2)
+    spacerItem6 = QtWidgets.QSpacerItem(20, 800, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
+    verticalLayout_2.addItem(spacerItem6)
+    line_2 = QtWidgets.QFrame(self)
+    line_2.setFrameShape(QtWidgets.QFrame.HLine)
+    line_2.setFrameShadow(QtWidgets.QFrame.Sunken)
+    line_2.setObjectName("line_2")
+    verticalLayout_2.addWidget(line_2)
+    progressBar = QtWidgets.QProgressBar(self)
+    progressBar.setProperty("value", 24)
+    progressBar.setObjectName("progressBar")
+    verticalLayout_2.addWidget(progressBar)
+    label_2 = QtWidgets.QLabel(self)
+    label_2.setObjectName("label_2")
+    verticalLayout_2.addWidget(label_2)
+    horizontalLayout_4 = QtWidgets.QHBoxLayout()
+    horizontalLayout_4.setObjectName("horizontalLayout_4")
+    spacerItem7 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout_4.addItem(spacerItem7)
+    horizontalLayout_6 = QtWidgets.QHBoxLayout()
+    horizontalLayout_6.setObjectName("horizontalLayout_6")
+    lineEdit_3 = QtWidgets.QLineEdit(self)
+    lineEdit_3.setAlignment(QtCore.Qt.AlignCenter)
+    lineEdit_3.setObjectName("lineEdit_3")
+    horizontalLayout_6.addWidget(lineEdit_3)
+    pushButton = QtWidgets.QPushButton(self)
+    pushButton.setObjectName("pushButton")
+    horizontalLayout_6.addWidget(pushButton)
+    horizontalLayout_4.addLayout(horizontalLayout_6)
+    horizontalLayout_4.setStretch(0, 1000)
+    horizontalLayout_4.setStretch(1, 1)
+    verticalLayout_2.addLayout(horizontalLayout_4)
+    line = QtWidgets.QFrame(self)
+    line.setFrameShape(QtWidgets.QFrame.HLine)
+    line.setFrameShadow(QtWidgets.QFrame.Sunken)
+    line.setObjectName("line")
+    verticalLayout_2.addWidget(line)
+    horizontalLayout_5 = QtWidgets.QHBoxLayout()
+    horizontalLayout_5.setObjectName("horizontalLayout_5")
+    spacerItem8 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
+    horizontalLayout_5.addItem(spacerItem8)
+    label_6 = QtWidgets.QLabel(self)
+    label_6.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTrailing | QtCore.Qt.AlignVCenter)
+    label_6.setObjectName("label_6")
+    horizontalLayout_5.addWidget(label_6)
+    horizontalLayout_5.setStretch(0, 1000)
+    verticalLayout_2.addLayout(horizontalLayout_5)
+    verticalLayout_3.addLayout(verticalLayout_2)
+    
+    self.setWindowTitle("Board Generator")
+    
+    #label.setText(_translate("Dialog", "X"))
+    label.setText("X")
+    
+    label_4.setText("In Database")
+    label_5.setText("20")
+    label_2.setText("Progress: ")
+    lineEdit_3.setText("10")
+    pushButton.setText("Generate")
+    label_6.setText("20s")
+    
+    label_2.setFocus()
+    
