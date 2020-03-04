@@ -13,7 +13,7 @@ from fillomino.board import Board
 from fillomino.display import GUI
 from fillomino.database import Database
 
-from boardGenerator.generator import BoardGenerator
+from boardGenerator.generator import BoardGenerator, GenerationFailedError
 
 class Controller(object):
   
@@ -35,18 +35,8 @@ class Controller(object):
     self.editingEnabled = False
     
     # create a blank board
-    #self.board = Board(rows=self.rows, columns=self.columns)
+    self.board = Board(rows=self.rows, columns=self.columns)
     
-    generator = BoardGenerator(rows=self.rows, columns=self.columns)
-    self.board, timeTaken = generator.generate()
-    """
-    self.debugGen = generator.generate()
-    self.board, timeTaken = next(self.debugGen)
-    self.board, timeTaken = next(self.debugGen)
-    self.board, timeTaken = next(self.debugGen)
-    self.board, timeTaken = next(self.debugGen)
-    self.board, timeTaken = next(self.debugGen)
-    """
     # create a GUI
     self.gui = GUI(self, self.board)
     
@@ -146,7 +136,24 @@ class Controller(object):
   def resetBoard(self):
     """ Reset the board state back to its initial values """
     
-    self.board, timeTaken = next(self.debugGen)
+    print("Generating. Attempt: 1", end="")
+    generator = BoardGenerator(rows=self.rows, columns=self.columns)
+    tryCount = 1
+    while True:
+      try:
+        self.board, timeTaken = generator.generate()
+        break
+      except GenerationFailedError as err:
+        tryCount += 1
+        print(",", tryCount, end="")
+    
+    print("")
+    print(timeTaken)
+    print(tryCount, "tries")
+    # self.debugGen = generator.generate()
+    # self.board, timeTaken = next(self.debugGen)
+    
+    
     
     """
     # reset the board

@@ -173,6 +173,7 @@ class GUI(QtCore.QObject):
 
     # highlight the new cell
     self.gameGrid[x][y].setStyleSheet(self.CELL_STYLE_HIGHLIGHTED)
+    self._setStatusText("{}x{}".format(x,y))
     #self._setCellStyle(x, y, self.CELL_STYLE_HIGHLIGHTED)
 
   def DEP_cellClicked(self, event, x, y):

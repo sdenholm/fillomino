@@ -74,9 +74,6 @@ class CellList(object):
           yield k1,k2
   
   def __bool__(self):
-    print("len: ", len(self))
-    print("bool: ", bool(self.cells))
-    print(self.cells)
     return bool(self.cells)
   
   def __len__(self):
@@ -104,6 +101,52 @@ class BoardGenerator(object):
   
   # max times to try and randomly fill a small region when an initial fill fails
   MAX_FILL_SMALL_REGION_ATTEMPTS = 10
+  
+  @staticmethod
+  def _cellsAreNeighbours(row1, column1, row2, column2):
+    """ Are the two cells beside each other """
+    return (row1+1, column1) == (row2, column2) or\
+           (row1-1, column1) == (row2, column2) or\
+           (row1, column1+1) == (row2, column2) or\
+           (row1, column1-1) == (row2, column2)
+  
+  
+  @staticmethod
+  def _groupNeighbourCellsTogether(cellList):
+    """ Given a list of cells, return a list of connected cell groups """
+
+    cellList = copy.deepcopy(cellList)
+    
+    # list of connected cell groups
+    groups = []
+    
+    while len(cellList) > 0:
+      
+      # start a new cell group
+      cellGroup = CellList()
+      cellGroup.append(cellList.pop())
+      
+      # for each candidate neighbour cell
+      for cell in cellList:
+        
+        # if the candidate cell is touching any of the cells in this group
+        for cellInGroup in cellGroup:
+          if BoardGenerator._cellsAreNeighbours(*cellInGroup, *cell):
+            
+            # add candidate to our group
+            cellGroup.append(cell)
+            break
+            
+      
+      # if we added any cells to our group, remove them from the candidate list
+      if len(cellGroup) > 1:
+        for cell in cellGroup:
+          cellList.remove(cell)
+      
+      # add this group to our overall list of groups
+      groups.append(cellGroup)
+    
+    return groups
   
   @staticmethod
   def hasIslandOnes(board):
@@ -157,8 +200,9 @@ class BoardGenerator(object):
     """
 
     regionSize = len(cellList)
-    groups = list(range(2,10))
-    groupWeights = [0.05, 0.1, 0.1, 0.15, 0.15, 0.15, 0.15, 0.15]
+    
+    #groups = list(range(2,10))
+    #groupWeights = [0.05, 0.1, 0.1, 0.15, 0.15, 0.15, 0.15, 0.15]
     
     creationAttempts = 0
     while True:
@@ -172,16 +216,16 @@ class BoardGenerator(object):
       # pick a random cell to start from
       row, column = localCellList.randomCell()
       
-      print("row", row)
-      print("column", column)
-      print("groupSize", groupSize)
+      #print("row", row)
+      #print("column", column)
+      #print("groupSize", groupSize)
       
       # create the group
       newGroup = BoardGenerator._walkFreeCells(row, column, localCellList, limit=groupSize)
-      for c in newGroup:
-        print(c)
-      print(cellList)
-      print("=====")
+      #for c in newGroup:
+      #  print(c)
+      #print(cellList)
+      #print("=====")
       # add the group to the board
       board = BoardGenerator.assignNumber(board, groupSize, newGroup, updateGroups=False)
       board.updateGroups()
@@ -281,7 +325,6 @@ class BoardGenerator(object):
     while freeCells:
       
       # get a free cell
-      print(freeCells)
       row, column = freeCells.pop()
       
       # walk along all the connected free cells to find the blank region
@@ -336,9 +379,74 @@ class BoardGenerator(object):
     return visitedCells
   
   
-  
+  @staticmethod
+  def populateRegions(board, freeCells):
+    """
+    # Break the list of free cells into contiguous "blank" regions. For each
+    # blank region, add a randomly-sized number-group. See how many blank
+    # sub-regions there are now, adding them back into the master blankRegion list.
+    #
+    # Will end up with a mostly-populated grid, with a few lone patches of un-filled
+    # cells.
+    #
+    """
+    
+    # list of cell groups that couldn't be filled in the random group-adding
+    #  -will be of size 9 or smaller
+    loneGroupList = []
+    
+    # find number of "blank" regions we have
+    blankRegionList = BoardGenerator.findBlankRegions(freeCells)
+    
+    while len(blankRegionList) > 0:
+    
+      # get (remove) region from blankList
+      blankCellList = blankRegionList.pop()
+    
+      regionSize = len(blankCellList)
+    
+      # if the region is one cell in size, add it to our list of lone groups
+      if regionSize == 1:
+        loneGroupList.append(blankCellList)
+    
+      # if region is exactly [2-9]
+      elif regionSize < 10:
+      
+        # fill this region with a group of that size, or smaller if that's invalid
+        board, usedCells = BoardGenerator.fillSmallRegion(board, blankCellList)
+      
+        # remove the newly added cells from our list of available cells
+        for usedCell in usedCells:
+          blankCellList.remove(usedCell)
+      
+        # couldn't fill this (whole) region
+        if len(blankCellList) > 0:
+        
+          # group the left over cells into contiguous groups, and add
+          # each group to the loneGroupList
+          for group in BoardGenerator._groupNeighbourCellsTogether(blankCellList):
+            loneGroupList.append(group)
+    
+      # insert a new group to try and break up the region
+      else:
+      
+        # add in a randomly meandering group of X cells
+        board, usedCells = BoardGenerator.newRandomGroup(board, blankCellList)
+      
+        # remove the newly added cells from our list of available cells
+        for usedCell in usedCells:
+          blankCellList.remove(usedCell)
+      
+        # find number of "blank" regions we have in this region
+        #  -append them to end of blankList
+        blankRegionList += BoardGenerator.findBlankRegions(blankCellList)
+    
+    
+    # return our mostly-filled board and our list of loneGroups
+    return board, loneGroupList
   
   def generate(self):
+    """ Generate a new board """
     
     startTime = datetime.datetime.utcnow()
     
@@ -346,62 +454,10 @@ class BoardGenerator(object):
     bd = Board(rows=self.rows, columns=self.columns)
     
     # add in some random 1's
-    numOnes = np.random.randint(40, 50)
-    #numOnes = 90
-    
+    numOnesLowerBound = int(np.ceil(self.rows * self.columns * 0.10))
+    numOnesUpperBound = int(np.ceil(self.rows * self.columns * 0.15))
+    numOnes = np.random.randint(numOnesLowerBound, numOnesUpperBound)
     bd, usedCells = BoardGenerator.addInitialOnes(bd, numOnes)
-    print("done ones")
-    
-    #print(usedCells)
-    #return bd, 0
-    # number of free spaces
-    #freeSpaces = np.product(bd.getBoardDimensions()) - numOnes
-    
-    # how many "blank" regions to we have
-    # blankRegions = [(0,0), (0,1)...], [(3,4),3,5)...] ...]
-    
-    # -if any regions are exactly [2-9], make them a region of that size
-    # -for each region:
-    #  -add in a full, randomly meandering group of X
-    #  -get blank regions in this region:
-    #   -if still one large region:
-    #    -add in another meandering region of size Y
-    #   -else, is now 2+ small regions
-    #    -loop back to start
-
-    
-    # blankRegions = [(0,0), (0,1)...], [(3,4),3,5)...] ...]
-
-    # -find number of "blank" regions to we have
-    # -get (remove) region from blankList
-    #   -if region exactly [2-9]
-    #     -make it a group of that size
-    #   -else:
-    #     -add in a full, randomly meandering group of X
-    #     -make sure board is still valid
-    #       -if not, re-do meandering group
-    #     -find number of "blank" regions to we have
-    #       -append them to end of blankList
-    
-    """
-    # DEBUG
-    halfWay = CellList()
-    halfCol = 9
-    for i in range(20):
-      halfWay.append((i,halfCol))
-      usedCells.append((i,halfCol))
-    bd = BoardGenerator.assignNumber(bd, 1, halfWay, updateGroups=False)
-    
-    halfWay = CellList()
-    halfRow = 9
-    for i in range(20):
-      halfWay.append((halfRow,i))
-      usedCells.append((halfRow,i))
-    bd = BoardGenerator.assignNumber(bd, 1, halfWay, updateGroups=False)
-    bd.updateGroups()
-    """
-    
-    #return bd,0
     
     # list of all available cells
     freeCells = CellList.filledList(self.rows, self.columns)
@@ -410,96 +466,43 @@ class BoardGenerator(object):
     for usedCell in usedCells:
       freeCells.remove(usedCell)
     
-    # list of cell groups that couldn't be filled in the random group adding
-    #  -will be of size 9 or smaller
-    loneGroupList = []
+    # fill most of the board by breaking the blank cells down into
+    # contiguous groups and filling the space with randomly-sized
+    # number groups
+    bd, loneGroupList = BoardGenerator.populateRegions(bd, freeCells)
     
-    # find number of "blank" regions we have
-    blankRegionList = BoardGenerator.findBlankRegions(freeCells)
+    #print(len(loneGroupList), " lone groups")
+    #print([str(x) for x in loneGroupList])
     
-    #for i, region in enumerate(blankRegionList):
-    #  bd = BoardGenerator.assignNumber(bd, i+2, region, updateGroups=False)
-    #return bd, 0
-    
-    while len(blankRegionList) > 0:
-      
-      # get (remove) region from blankList
-      blankCellList = blankRegionList.pop()
-
-      regionSize = len(blankCellList)
-      
-      # if the region is one cell in size, add its single cell to our
-      # list of lone cells
-      if regionSize == 1:
-        loneGroupList.append(blankCellList)
-      
-      # if region exactly [2-9]
-      elif regionSize < 10:
-        
-        # fill this region with a group of that size, or smaller if that's invalid
-        bd, usedCells = BoardGenerator.fillSmallRegion(bd, blankCellList)
-        
-        # couldn't fill this (whole) region
-        if len(usedCells) != regionSize:
-          loneGroupList.append(blankCellList)
-      
-      # insert a new group to try and break up the region
-      else:
-        
-        # add in a randomly meandering group of X cells
-        bd, usedCells = BoardGenerator.newRandomGroup(bd, blankCellList)
-
-        # remove the newly added cells from our list of available cells
-        for usedCell in usedCells:
-          blankCellList.remove(usedCell)
-        
-        # find number of "blank" regions we have in this region
-        #  -append them to end of blankList
-        blankRegionList += BoardGenerator.findBlankRegions(blankCellList)
-
-        #yield bd, 0
-    
-    print(len(loneGroupList), " lone groups")
-    print([str(x) for x in loneGroupList])
-    
-    # -for all of the lone groups:
-    #  -find their neighbour groups
-    # -key the lone groups by their neighbours
-    #
-    # -cells that don't share any neighbours with anyone:
-    #  -try to merge
-    #  -if this fails, board fails (for now)
-    
-    
-    
-    return bd, 0
     
     # if we have lone groups of cells that we couldn't fill, try to
     # merge them into their neighbour's groups
     for iCell, loneGroup in enumerate(loneGroupList):
       
       # try to add the cell to the (N,S,W,E)
-      #  -check for invalid cell after each attempt
-      #  -ignore groups == 9
-      #  -if (N,S,W,E) fails:
-      #    -make it a 1 (if possible)
-      #    -merge it into a neighbour 1 to make a 2 (if possible)
-      #    -fail(?)
-      #    -try the other cells and come back later(?)
-      bdNew = BoardGenerator.mergeLoneGroup(bd, loneGroup)
-      if bdNew is None:
-        cellsRemaining = len(loneCellList)-iCell
+      try:
+        #print("GROUP: ", len(loneGroup), " - ", loneGroup)
+        bd = BoardGenerator.mergeLoneGroup(bd, loneGroup)
+        
+      except GenerationFailedError:
+        cellsRemaining = len(loneGroupList)-iCell
         timeTaken      = datetime.datetime.utcnow() - startTime
         errMsg  = "Could not merge final cells.\n"
         errMsg += "Time taken: {}\n".format(timeTaken)
         errMsg += "Lone cells remaining: {}\n".format(cellsRemaining)
         errMsg += "Board:\n{}".format(bd.getValues())
         raise GenerationFailedError(errMsg)
-      
-      else:
-        bd = bdNew
-
+    
+    # calculate the time taken
     timeTaken = datetime.datetime.utcnow() - startTime
+    
+    # final board update and checks
+    bd.updateGroups()
+    if not (bd.isBoardValid() and bd.isBoardComplete()):
+      errMsg  = "Generation finished, but the board is not valid and complete\n"
+      errMsg += "Board:\n{}".format(bd.getValues())
+      raise SystemError(errMsg)
+    
     return bd, timeTaken
   
   
@@ -522,6 +525,9 @@ class BoardGenerator(object):
     
     #bdNew = BoardGenerator.mergeLoneGroup(bd, loneGroup)
     
+    #print("lone cells: ", cellList)
+    
+    # dimensions of grid
     maxRows, maxColumns = board.getBoardDimensions()
     
     neighbourGroups = []
@@ -538,33 +544,53 @@ class BoardGenerator(object):
           # get the group's size/value
           groupSize = board.getCellValue(neighRow, neighCol)
           
-          # skip blank cells
-          if groupSize == 0:
+          # skip blank cells and cells we can't expand into
+          if groupSize == 0 or groupSize + len(cellList) > 9:
             continue
             
-          # retrieve the group's cells
+          # look through all of the board's groups of this size
           for group in board.getValidGroups()[groupSize]:
             
-            # add the group to our list if:
-            #  -this is the group we want
-            #  -we don't already have this group
+            # if we've found the group our neighbour belongs to
             if (neighRow, neighCol) in group:
+  
+              # add group to our list if we don't already have a record of it
               if group not in neighbourGroups:
                 neighbourGroups.append(group)
+                
               break
           
     
+    #print("neighbours")
+    #for neigh in neighbourGroups:
+    #  print(len(neigh), " - ", neigh)
+    
+    # if none of the neighbours are the same size as this group, just fill
+    # in this group
+    if len(cellList) not in [len(group) for group in neighbourGroups]:
+      #print("fill")
+      board, success = BoardGenerator._tryAssignment(board, len(cellList), cellList)
+      return board
+    
+    # try merging with each of our neighbours in turn
+    for group in neighbourGroups:
       
-    # remove empty cells and duplicates from the neighbour values
-    neighbourGroups = [group for group in neighbourGroups if len(group) > 1]
-    
-    
-    neighbourValues = list(set(neighbourValues))
-    try: neighbourValues.remove(0)
-    except ValueError: pass
-    
-    # filter the cells
-    
+      # create a new, merged group
+      newGroup = copy.deepcopy(group)
+      for cell in cellList:
+        newGroup.append(cell)
+      
+      # try to create the new group
+      board, success = BoardGenerator._tryAssignment(board, len(newGroup), newGroup)
+      if success:
+        return board
+      
+      # merging failed, so revert the original group
+      board = BoardGenerator.assignNumber(board, len(group), group, updateGroups=False)
+      board.updateGroups()
+      
+    # no luck merging
+    raise GenerationFailedError("Could not merge lone cell group: {}".format(cellList))
     
   @staticmethod
   def _tryAssignment(board, regionSize, cellList):
@@ -602,7 +628,7 @@ class BoardGenerator(object):
     # try filling the region with a group of exactly that size
     board, success = BoardGenerator._tryAssignment(board, regionSize, cellList)
     if success:
-      return board, cellList
+      return board, copy.deepcopy(cellList)
     
     # try smaller regions
     for smallerRegion in range(regionSize, 1, -1):
