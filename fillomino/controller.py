@@ -1,5 +1,6 @@
 import os
 import logging
+import sys
 import time
 
 logger = logging.getLogger(__name__)
@@ -20,8 +21,8 @@ class Controller(object):
   def __init__(self, databaseLoc):
     
     # default rows
-    self.rows    = 20
-    self.columns = 20
+    self.rows    = 25# 20
+    self.columns = 35#20
     
     # make sure there is a board database
     if not os.path.exists(databaseLoc):
@@ -124,8 +125,8 @@ class Controller(object):
   def newBoard(self):
     """ Return a random board from the database """
     
-    rows = 20
-    columns = 20
+    rows    = self.rows #20
+    columns = self.columns #20
     
     self.loadBoard(rows, columns)
   
@@ -137,6 +138,7 @@ class Controller(object):
     """ Reset the board state back to its initial values """
     
     print("Generating. Attempt: 1", end="")
+    sys.stdout.flush()
     generator = BoardGenerator(rows=self.rows, columns=self.columns)
     tryCount = 1
     while True:
@@ -146,6 +148,7 @@ class Controller(object):
       except GenerationFailedError as err:
         tryCount += 1
         print(",", tryCount, end="")
+        sys.stdout.flush()
     
     print("")
     print(timeTaken)

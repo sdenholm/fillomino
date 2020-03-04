@@ -101,7 +101,8 @@ class GUI(QtCore.QObject):
     self.mainLayout.addLayout(menuLayout, 1)
     
     # game grid
-    self.gameGrid, gridLayout = self._createGrid(rows=20, columns=20)
+    rows, columns = board.getBoardDimensions()
+    self.gameGrid, gridLayout = self._createGrid(rows=rows, columns=columns)
     self.mainLayout.addLayout(gridLayout, 100)
     
     # controls
