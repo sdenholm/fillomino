@@ -21,8 +21,8 @@ class Controller(object):
   def __init__(self, databaseLoc):
     
     # default rows
-    self.rows    = 15#20
-    self.columns = 15#20
+    self.rows    = 10#20
+    self.columns = 10#20
     
     # make sure there is a board database
     if not os.path.exists(databaseLoc):
@@ -41,7 +41,11 @@ class Controller(object):
     # create a GUI
     self.gui = GUI(self, self.board)
     
-    
+  
+  def getBoardsInfo(self):
+    """ Get information about each of the board types available """
+    return self.db.getBoardsInfo()
+  
   def loadBoard(self, rows, columns, boardID=None):
     """
     # For the given dimensions, either load in a random board or the board
@@ -112,6 +116,26 @@ class Controller(object):
     if self.board.isBoardComplete():
       self.boardComplete()
       
+      
+  def setBoardDimensions(self, rows, columns):
+    """ Change the board dimensions """
+    
+    # if the board is already set to these dimensions
+    if rows == self.rows and columns == self.columns:
+      return
+    
+    self.rows    = rows
+    self.columns = columns
+
+    # disable board editing
+    self.editingEnabled = False
+
+    # create a blank board
+    self.board = Board(rows=self.rows, columns=self.columns)
+
+    # update the gui
+    self.gui.displayNewBoard(self.board)
+    
     
   def boardComplete(self):
     """ Called when the board is completed """
@@ -122,11 +146,12 @@ class Controller(object):
     # display finished message
     self.gui.boardComplete()
   
+  
   def newBoard(self):
     """ Return a random board from the database """
     
-    rows    = self.rows #20
-    columns = self.columns #20
+    rows    = self.rows
+    columns = self.columns
     
     self.loadBoard(rows, columns)
   

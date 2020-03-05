@@ -61,7 +61,7 @@ class Database(object):
     self.cursor = None
   
   def __del__(self):
-    if self.conn is not None and self.conn.is_connected():
+    if self.conn is not None:# and self.conn.is_connected():
       self.close()
   
   def connect(self):
@@ -144,7 +144,49 @@ class Database(object):
     
     return self.cursor.lastrowid
 
+  def getBoardsInfo(self):
+    """
+    # Get general information on all of the board types in the database
+    #  -row and column lengths
+    #  -number of each type of board
+    #
+    """
+    
+    # get the names of all the boards
+    cmd = """SELECT name FROM sqlite_master WHERE type='table';"""
+    results = self._executeCommand(cmd)
+    
+    boardsInfo = {}
+    
+    for result in results:
+      try:
+        
+        # get the table name and ignore any tables other than boards
+        tableName = result[0]
+        if not tableName.startswith("boards"):
+          continue
+        
+        # get the number of rows and columns
+        rows, columns = map(int, tableName.replace("boards", "").split("x"))
+        
+        # get information about this table
+        boardsInfo[(rows, columns)] = {
+          "length": self._getTableLength(tableName)
+        }
+        
+      # problem parsing board data
+      except Exception as err:
+        raise SystemError("Problem retrieving board info\nResults: {}\nError: {}".format(results, err))
+    
+    return boardsInfo
   
-  
-  
-  
+    
+  def _getTableLength(self, tableName):
+    """ Return the number of entries in the given table """
+    
+    cmd = """select count(*) from {};""".format(tableName)
+    res = self._executeCommand(cmd)
+    if len(res) != 1:
+      raise SystemError("Unable to get the table length for {}".format(tableName))
+    
+    return int(res[0][0])

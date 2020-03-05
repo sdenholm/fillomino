@@ -1,3 +1,4 @@
+import datetime
 import logging
 logger = logging.getLogger(__name__)
 
@@ -34,12 +35,15 @@ class GUI(QtCore.QObject):
     
     # references to controller and the board to display
     self.controller = controller
-    self.board      = None
+    self.board      = board
     
     # highlighted/selected cell
     self.selectedCell = None
     
-    # get boad dimensions
+    # gui representation of the board
+    self.gameGrid = None
+    
+    # get board dimensions
     rows, columns = board.getBoardDimensions()
     
 
@@ -63,12 +67,12 @@ class GUI(QtCore.QObject):
     
     # group cell styles
     self.CELL_STYLE_1 = defaultCellStyle+"background: powderblue;"
-    self.CELL_STYLE_2 = defaultCellStyle+"background: cornsilk;"
+    self.CELL_STYLE_2 = defaultCellStyle+"background: bisque;"
     self.CELL_STYLE_3 = defaultCellStyle+"background: khaki;"
     self.CELL_STYLE_4 = defaultCellStyle+"background: lightskyblue;"
     self.CELL_STYLE_5 = defaultCellStyle+"background: aquamarine;"
     self.CELL_STYLE_6 = defaultCellStyle+"background: thistle;"
-    self.CELL_STYLE_7 = defaultCellStyle+"background: moccasin;"
+    self.CELL_STYLE_7 = defaultCellStyle+"background: palegoldenrod;"
     self.CELL_STYLE_8 = defaultCellStyle+"background: lightsteelblue;"
     self.CELL_STYLE_9 = defaultCellStyle+"background: palegreen;"
     
@@ -95,36 +99,22 @@ class GUI(QtCore.QObject):
     ###########################################################################
     # create the GUI
     ###########################################################################
-
-    
     
     # application object
     self.app = QtWidgets.QApplication(sys.argv)
-    self.mainWindow = QtWidgets.QWidget()
     
-    # set window size and title
-    self.mainWindow.resize(35*rows, 35*columns)
+    self.mainWindow = QtWidgets.QWidget()
     self.mainWindow.setWindowTitle("Fillomino v0.1")
     
     # register function for keyboard presses
     self.mainWindow.keyPressEvent = self._keyPressed
-    
+
     # use a box layout for the other layouts
     self.mainLayout = QtWidgets.QVBoxLayout()
     self.mainWindow.setLayout(self.mainLayout)
     
-    # menu bar
-    menuLayout = self._createMenuBar()
-    self.mainLayout.addLayout(menuLayout, 1)
-    
-    # game grid
-    self.gameGrid, gridLayout = self._createGrid(rows=rows, columns=columns)
-    self.mainLayout.addLayout(gridLayout, 1000)
-    
-    # controls
-    self.controls = self._createControls()
-    self.mainLayout.addLayout(self.controls, 1)
-    
+    self._setupAppLayout(rows, columns)
+
     ###########################################################################
     
     
@@ -193,21 +183,6 @@ class GUI(QtCore.QObject):
   def _controlClicked(self):
     """ Called whenever a control button is pressed """
     
-    genDialog = GeneratorDialog(self.mainWindow)
-    genDialog.show()
-    genDialog.exec_()
-    
-    return
-    #app = QtWidgets.QApplication(sys.argv)
-    Dialog = QtWidgets.QDialog(self.mainWindow)
-    ui = Ui_Dialog()
-    ui.setupUi(Dialog)
-    Dialog.show()
-    Dialog.exec_()
-    #app.exec_()
-    
-    return
-    
     buttonText = self.sender().text()
     
     # when the <x> button is pressed, call function:
@@ -221,18 +196,56 @@ class GUI(QtCore.QObject):
     if action is not None:
       action()
   
-  @QtCore.pyqtSlot()
-  def _menuClicked(self):
-    """ Called whenever a menu item is clicked """
+  
+  def _fileMenuClicked(self):
+    """ Called whenever a file menu item is clicked """
+  
+    menuText = self.sender().text()
+  
+    # function to call for each menu option
+    actionMap = {
+      "New": self.controller.newBoard,
+      "Save": lambda: print("Save"),
+      "Load": lambda: print("Load"),
+      "Quit": sys.exit
+    }
+  
+    # call menu function
+    action = actionMap.get(menuText, None)
+    if action is not None:
+      action()
+  
+  
+  def _boardMenuClicked(self):
+    """ Called whenever a board menu item is clicked """
+  
+    menuText = self.sender().text()
+  
+    # function to call for each menu option
+    actionMap = {
+      "Generate New Boards": self.showBoardGeneratorWindow,
+    }
+    
+    # call menu function
+    action = actionMap.get(menuText, None)
+    
+    # clicked on a board dimension option, so set the dimensions
+    if action is None:
+      rows, cols = map(int, menuText.split("\t")[0].split("x"))
+      self.controller.setBoardDimensions(rows, cols)
+      
+    # mapped to an action above
+    else:
+      action()
+
+
+  def _helpMenuClicked(self):
+    """ Called whenever a help menu item is clicked """
     
     menuText = self.sender().text()
     
-    # functino to call for each menu option
+    # function to call for each menu option
     actionMap = {
-      "New":         self.controller.newBoard,
-      "Save":        lambda: print("Save"),
-      "Load":        lambda: print("Load"),
-      "Quit":        sys.exit,
       "How to Play": lambda: print("How to Play"),
       "About":       lambda: print("About"),
     }
@@ -241,6 +254,7 @@ class GUI(QtCore.QObject):
     action = actionMap.get(menuText, None)
     if action is not None:
       action()
+    
     
   def _createMenuBar(self):
     """ Create the menu bar GUI elements"""
@@ -255,18 +269,58 @@ class GUI(QtCore.QObject):
     menubar.setStyleSheet("padding: 1px;")
     menuLayout.addWidget(menubar)
     
+    ###########################################################################
     # file
-    fileMenu = menubar.addMenu("File")
-    fileMenu.addAction("New",  self._menuClicked)
-    fileMenu.addAction("Save", self._menuClicked)
-    fileMenu.addAction("Load", self._menuClicked)
-    fileMenu.addSeparator()
-    fileMenu.addAction("Quit", self._menuClicked)
+    ###########################################################################
     
+    fileMenu = menubar.addMenu("File")
+    fileMenu.addAction("New",  self._fileMenuClicked)
+    fileMenu.addAction("Save", self._fileMenuClicked)
+    fileMenu.addAction("Load", self._fileMenuClicked)
+    fileMenu.addSeparator()
+    fileMenu.addAction("Quit", self._fileMenuClicked)
+    
+    
+    ###########################################################################
+    # boards
+    ###########################################################################
+    
+    boardInfo = self.controller.getBoardsInfo()
+    boardDims = self.board.getBoardDimensions()
+    
+    fileMenu = menubar.addMenu("Boards")
+    
+    # add a board option for each type of board in the database
+    if len(boardInfo) == 0:
+      fileMenu.addAction("<No Boards Found>")
+      
+    else:
+      for (rows, cols), info in boardInfo.items():
+        
+        # each board option will give the dimensions and show the number
+        # of those board types we have in the database
+        #  -currently selected type will be ticked
+        optionText = "{}x{}\t({})".format(rows, cols, info["length"])
+        action = QtWidgets.QAction(optionText, self.mainWindow)
+        action.triggered.connect(self._boardMenuClicked)
+        action.setCheckable(True)
+        fileMenu.addAction(action)
+        
+        # tick this option if it's our current board dimensions
+        if (rows, cols) == boardDims:
+          action.setChecked(True)
+    
+    fileMenu.addSeparator()
+    fileMenu.addAction("Generate New Boards", self._boardMenuClicked)
+    
+
+    ###########################################################################
     # help
+    ###########################################################################
+    
     helpMenu = menubar.addMenu("Help")
-    helpMenu.addAction("How to Play", self._menuClicked)
-    helpMenu.addAction("About",       self._menuClicked)
+    helpMenu.addAction("How to Play", self._helpMenuClicked)
+    helpMenu.addAction("About",       self._helpMenuClicked)
     
     return menuLayout
   
@@ -344,7 +398,7 @@ class GUI(QtCore.QObject):
     """ Clear the board grid and reset any messages or statuses """
 
     # get the dimensions of the board
-    rows, columns = self.board.getValues().shape
+    rows, columns = self.board.getBoardDimensions()
     
     # for every cell
     for row in range(rows):
@@ -374,14 +428,22 @@ class GUI(QtCore.QObject):
   def displayNewBoard(self, board):
     """ Register the new board and display it on the game grid"""
     
+    # dimensions of the old board
+    oldRows, oldColumns = self.board.getBoardDimensions()
+
+    # dimensions of the new board
+    rows, columns = board.getBoardDimensions()
+    
     # remember this new board
     self.board = board
     
+    # if this board has different dimensions to our current one, update
+    # the app layout to accommodate the new size
+    if (rows, columns) != (oldRows, oldColumns ):
+      self._setupAppLayout(rows, columns)
+    
     # clear any past boards
     self._clearBoard()
-    
-    # get the values and dimensions of the board
-    rows, columns = board.getBoardDimensions()
     
     # set the value for each initial cell
     for row in range(rows):
@@ -428,7 +490,29 @@ class GUI(QtCore.QObject):
       self.selectedCell.originalStyle = style
     else:
       self.gameGrid[x][y].setStyleSheet(style)
+  
+  
+  def _setupAppLayout(self, rows, columns):
+  
+    # remove any previous gui elements
+    while self.mainLayout.count() > 0:
+      self.mainLayout.takeAt(0)
     
+    # set window size and title
+    self.mainWindow.resize(35 * rows, 35 * columns)
+  
+    # menu bar
+    menuLayout = self._createMenuBar()
+    self.mainLayout.addLayout(menuLayout, 1)
+  
+    # game grid
+    self.gameGrid, gridLayout = self._createGrid(rows=rows, columns=columns)
+    self.mainLayout.addLayout(gridLayout, 1000)
+  
+    # controls
+    controls = self._createControls()
+    self.mainLayout.addLayout(controls, 1)
+  
   
   def highlightGroups(self):
     """ Highlight the valid, invalid and orphan groups """
@@ -484,102 +568,72 @@ class GUI(QtCore.QObject):
         else:
           self._setCellStyle(*cell, self.TEXT_STYLE_NORMAL + self.CELL_STYLE_INVALID)
 
-class Ui_Dialog(object):
-  
-  def setupUi(self, Dialog):
-    Dialog.setObjectName("Dialog")
-    Dialog.resize(506, 424)
-    self.verticalLayout_2 = QtWidgets.QVBoxLayout(Dialog)
-    self.verticalLayout_2.setObjectName("verticalLayout_2")
-    self.verticalLayout = QtWidgets.QVBoxLayout()
-    self.verticalLayout.setObjectName("verticalLayout")
-    self.horizontalLayout = QtWidgets.QHBoxLayout()
-    self.horizontalLayout.setObjectName("horizontalLayout")
-    self.textEdit = QtWidgets.QTextEdit(Dialog)
-    self.textEdit.setObjectName("textEdit")
-    self.horizontalLayout.addWidget(self.textEdit)
-    self.label = QtWidgets.QLabel(Dialog)
-    self.label.setObjectName("label")
-    self.horizontalLayout.addWidget(self.label)
-    self.textEdit_2 = QtWidgets.QTextEdit(Dialog)
-    self.textEdit_2.setObjectName("textEdit_2")
-    self.horizontalLayout.addWidget(self.textEdit_2)
-    self.verticalLayout.addLayout(self.horizontalLayout)
-    spacerItem = QtWidgets.QSpacerItem(20, 800, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Maximum)
-    self.verticalLayout.addItem(spacerItem)
-    self.label_3 = QtWidgets.QLabel(Dialog)
-    self.label_3.setText("")
-    self.label_3.setObjectName("label_3")
-    self.verticalLayout.addWidget(self.label_3)
-    self.progressBar = QtWidgets.QProgressBar(Dialog)
-    self.progressBar.setProperty("value", 24)
-    self.progressBar.setObjectName("progressBar")
-    self.verticalLayout.addWidget(self.progressBar)
-    self.label_2 = QtWidgets.QLabel(Dialog)
-    self.label_2.setObjectName("label_2")
-    self.verticalLayout.addWidget(self.label_2)
-    self.verticalLayout.setStretch(2, 10000)
-    self.verticalLayout_2.addLayout(self.verticalLayout)
-  
-    _translate = QtCore.QCoreApplication.translate
-    Dialog.setWindowTitle(_translate("Dialog", "Dialog"))
-    self.label.setText(_translate("Dialog", "TextLabel"))
-    self.label_2.setText(_translate("Dialog", "TextLabel"))
-    QtCore.QMetaObject.connectSlotsByName(Dialog)
+  def showBoardGeneratorWindow(self):
+    """ Display the board generator window """
+    genDialog = BoardGeneratorDialog(self.mainWindow, gui=self)
+    genDialog.show()
+    genDialog.exec_()
 
-class GeneratorDialog(QtWidgets.QDialog):
+class BoardGeneratorDialog(QtWidgets.QDialog):
   
-  def __init__(self, *args, **kwargs):
-    super().__init__(*args, **kwargs)
-    self.setModal(True)
+  def __init__(self, parent, gui):
+    super().__init__(parent)
+
+    # reference to our parent gui
+    self.gui = gui
     
+    self.setWindowTitle("Board Generator")
+    self.resize(1, 1)
+    
+    self.setModal(True)
     self.setObjectName("Dialog")
-    #self.resize(309, 220)
-    self.resize(25, 15)
+    
+    
+
     
     verticalLayout_3 = QtWidgets.QVBoxLayout(self)
-    verticalLayout_3.setObjectName("verticalLayout_3")
+    #verticalLayout_3.setObjectName("verticalLayout_3")
     verticalLayout_2 = QtWidgets.QVBoxLayout()
-    verticalLayout_2.setObjectName("verticalLayout_2")
+    #verticalLayout_2.setObjectName("verticalLayout_2")
     horizontalWidget_2 = QtWidgets.QWidget(self)
-    horizontalWidget_2.setObjectName("horizontalWidget_2")
+    #horizontalWidget_2.setObjectName("horizontalWidget_2")
     horizontalLayout_3 = QtWidgets.QHBoxLayout(horizontalWidget_2)
-    horizontalLayout_3.setObjectName("horizontalLayout_3")
+    #horizontalLayout_3.setObjectName("horizontalLayout_3")
     horizontalWidget = QtWidgets.QWidget(horizontalWidget_2)
-    horizontalWidget.setObjectName("horizontalWidget")
+    #horizontalWidget.setObjectName("horizontalWidget")
     horizontalLayout = QtWidgets.QHBoxLayout(horizontalWidget)
-    horizontalLayout.setObjectName("horizontalLayout")
+    #horizontalLayout.setObjectName("horizontalLayout")
     spacerItem = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
     horizontalLayout.addItem(spacerItem)
     lineEdit = QtWidgets.QLineEdit(horizontalWidget)
-    lineEdit.setObjectName("lineEdit")
+    #lineEdit.setObjectName("lineEdit")
     horizontalLayout.addWidget(lineEdit)
     label = QtWidgets.QLabel(horizontalWidget)
-    label.setObjectName("label")
+    #label.setObjectName("label")
     horizontalLayout.addWidget(label)
     lineEdit_2 = QtWidgets.QLineEdit(horizontalWidget)
-    lineEdit_2.setObjectName("lineEdit_2")
+    #lineEdit_2.setObjectName("lineEdit_2")
     horizontalLayout.addWidget(lineEdit_2)
     spacerItem1 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
     horizontalLayout.addItem(spacerItem1)
     verticalWidget = QtWidgets.QWidget(horizontalWidget)
-    verticalWidget.setObjectName("verticalWidget")
+    #verticalWidget.setObjectName("verticalWidget")
     verticalLayout = QtWidgets.QVBoxLayout(verticalWidget)
-    verticalLayout.setObjectName("verticalLayout")
+    #verticalLayout.setObjectName("verticalLayout")
     spacerItem2 = QtWidgets.QSpacerItem(20, 40, QtWidgets.QSizePolicy.Minimum, QtWidgets.QSizePolicy.Expanding)
     verticalLayout.addItem(spacerItem2)
     label_4 = QtWidgets.QLabel(verticalWidget)
     label_4.setAlignment(QtCore.Qt.AlignCenter)
-    label_4.setObjectName("label_4")
+    #label_4.setObjectName("label_4")
     verticalLayout.addWidget(label_4)
     horizontalLayout_2 = QtWidgets.QHBoxLayout()
-    horizontalLayout_2.setObjectName("horizontalLayout_2")
+    #horizontalLayout_2.setObjectName("horizontalLayout_2")
     spacerItem3 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
     horizontalLayout_2.addItem(spacerItem3)
     label_5 = QtWidgets.QLabel(verticalWidget)
     label_5.setStyleSheet("background: white; border-style: outset; border-width: 1px; border-color: black;")
     label_5.setAlignment(QtCore.Qt.AlignCenter)
-    label_5.setObjectName("label_5")
+    #label_5.setObjectName("label_5")
     horizontalLayout_2.addWidget(label_5)
     spacerItem4 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
     horizontalLayout_2.addItem(spacerItem4)
@@ -599,27 +653,27 @@ class GeneratorDialog(QtWidgets.QDialog):
     line_2 = QtWidgets.QFrame(self)
     line_2.setFrameShape(QtWidgets.QFrame.HLine)
     line_2.setFrameShadow(QtWidgets.QFrame.Sunken)
-    line_2.setObjectName("line_2")
+    #line_2.setObjectName("line_2")
     verticalLayout_2.addWidget(line_2)
     progressBar = QtWidgets.QProgressBar(self)
     progressBar.setProperty("value", 24)
-    progressBar.setObjectName("progressBar")
+    #progressBar.setObjectName("progressBar")
     verticalLayout_2.addWidget(progressBar)
     label_2 = QtWidgets.QLabel(self)
-    label_2.setObjectName("label_2")
+    #label_2.setObjectName("label_2")
     verticalLayout_2.addWidget(label_2)
     horizontalLayout_4 = QtWidgets.QHBoxLayout()
-    horizontalLayout_4.setObjectName("horizontalLayout_4")
+    #horizontalLayout_4.setObjectName("horizontalLayout_4")
     spacerItem7 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
     horizontalLayout_4.addItem(spacerItem7)
     horizontalLayout_6 = QtWidgets.QHBoxLayout()
-    horizontalLayout_6.setObjectName("horizontalLayout_6")
+    #horizontalLayout_6.setObjectName("horizontalLayout_6")
     lineEdit_3 = QtWidgets.QLineEdit(self)
     lineEdit_3.setAlignment(QtCore.Qt.AlignCenter)
-    lineEdit_3.setObjectName("lineEdit_3")
+    #lineEdit_3.setObjectName("lineEdit_3")
     horizontalLayout_6.addWidget(lineEdit_3)
     pushButton = QtWidgets.QPushButton(self)
-    pushButton.setObjectName("pushButton")
+    #pushButton.setObjectName("pushButton")
     horizontalLayout_6.addWidget(pushButton)
     horizontalLayout_4.addLayout(horizontalLayout_6)
     horizontalLayout_4.setStretch(0, 1000)
@@ -628,21 +682,21 @@ class GeneratorDialog(QtWidgets.QDialog):
     line = QtWidgets.QFrame(self)
     line.setFrameShape(QtWidgets.QFrame.HLine)
     line.setFrameShadow(QtWidgets.QFrame.Sunken)
-    line.setObjectName("line")
+    #line.setObjectName("line")
     verticalLayout_2.addWidget(line)
     horizontalLayout_5 = QtWidgets.QHBoxLayout()
-    horizontalLayout_5.setObjectName("horizontalLayout_5")
+    #horizontalLayout_5.setObjectName("horizontalLayout_5")
     spacerItem8 = QtWidgets.QSpacerItem(40, 20, QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Minimum)
     horizontalLayout_5.addItem(spacerItem8)
     label_6 = QtWidgets.QLabel(self)
     label_6.setAlignment(QtCore.Qt.AlignRight | QtCore.Qt.AlignTrailing | QtCore.Qt.AlignVCenter)
-    label_6.setObjectName("label_6")
+    #label_6.setObjectName("label_6")
     horizontalLayout_5.addWidget(label_6)
     horizontalLayout_5.setStretch(0, 1000)
     verticalLayout_2.addLayout(horizontalLayout_5)
     verticalLayout_3.addLayout(verticalLayout_2)
     
-    self.setWindowTitle("Board Generator")
+    
     
     #label.setText(_translate("Dialog", "X"))
     label.setText("X")
