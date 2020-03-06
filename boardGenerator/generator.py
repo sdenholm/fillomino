@@ -503,7 +503,10 @@ class BoardGenerator(object):
       errMsg += "Board:\n{}".format(bd.getValues())
       raise SystemError(errMsg)
     
-    return bd, timeTaken
+    # create the initial state of the board
+    initialBoard = BoardGenerator.defineInitialBoardState(bd)
+    
+    return initialBoard, bd, timeTaken
   
   
   @staticmethod
@@ -613,6 +616,13 @@ class BoardGenerator(object):
       board = BoardGenerator.assignNumber(board, 0, cellList, updateGroups=False)
       board.updateGroups()
       return board, False
+  
+  @staticmethod
+  def defineInitialBoardState(finalBoard):
+    """ Define the initial state of a finished board """
+    
+    return finalBoard
+  
   
   @staticmethod
   def fillSmallRegion(board, cellList):

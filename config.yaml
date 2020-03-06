@@ -1,0 +1,3 @@
+columns: 10
+database-file: boards.db
+rows: 10

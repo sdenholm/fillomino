@@ -86,7 +86,8 @@ class Database(object):
     ret = self._executeCommand(cmd)
     
     if len(ret) != 1:
-      raise SystemError("No boards in the {}x{} table".format(rows, columns))
+      return None
+      #raise SystemError("No boards in the {}x{} table".format(rows, columns))
 
     board = ret[0]
     return {
@@ -131,11 +132,10 @@ class Database(object):
       raise SystemError("Board with id {} already exists".format(boardID))
     
     # insert the new board
-    cmd  = """INSERT INTO boards{}x{}(id, initial_board, final_board, creation_date, stats) """
-    cmd += """VALUES({},'{}','{}','{}')"""\
-          .format(rows,
-                  columns,
-                  boardID,
+    cmd  = """INSERT INTO boards{}x{}(id, initial_board, final_board, creation_date, stats) """ \
+          .format(rows, columns)
+    cmd += """VALUES({},'{}','{}','{}','{}')"""\
+          .format(boardID,
                   json.dumps(initialBoard),
                   json.dumps(finalBoard),
                   json.dumps(creationDate),
