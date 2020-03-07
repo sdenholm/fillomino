@@ -1,4 +1,7 @@
 import logging
+
+from fillomino.board import Board
+
 logger = logging.getLogger(__name__)
 
 import json
@@ -32,19 +35,29 @@ class DatabaseSetup(object):
   def getBoardTableDefinition(rows, columns):
     """ SQL table definition for a board table """
     
-    # id:            unique ID for this board
-    # initial_board: layout for unsolved board
-    # final_board:   layout for solved board
-    # creation_date  date board was created
-    # stats:         miscellaneous board stats
+    # id:             unique ID for this board
+    # initial_board:  layout for unsolved board
+    # final_board:    layout for solved board
+    # creation_date:  date board was created
+    # shortest_solve: shortest solve time
+    # longest_solve:  longest solve time
+    # mean_solve:     average solve time
+    # std_solve:      standard deviation of average solve time
+    # solve_count:    number of times board was solved
+    # stats:          miscellaneous board stats
     #
     definition = """
       create table IF NOT EXISTS boards{}x{}(
-        id            INT UNSIGNED,
-        initial_board JSON,
-        final_board   JSON,
-        creation_date DATETIME,
-        stats         JSON,
+        id             INT UNSIGNED,
+        initial_board  JSON,
+        final_board    JSON,
+        creation_date  DATETIME,
+        shortest_solve INT UNSIGNED DEFAULT NULL,
+        longest_solve  INT UNSIGNED DEFAULT NULL,
+        mean_solve     FLOAT UNSIGNED DEFAULT NULL,
+        std_solve      FLOAT UNSIGNED DEFAULT NULL,
+        solve_count    INT UNSIGNED DEFAULT 0,
+        stats          JSON,
         PRIMARY KEY (id)
       );
     """.format(rows, columns)
@@ -53,7 +66,17 @@ class DatabaseSetup(object):
     
 class Database(object):
   
-
+  class Decorators(object):
+  
+    @classmethod
+    def openAndClose(cls, func):
+      def wrapper(*args, **kwargs):
+        self = args[0]
+        self.connect()
+        result = func(*args, **kwargs)
+        self.close()
+        return result
+      return wrapper
       
   def __init__(self, dbFile):
     self.dbFile = dbFile
@@ -71,6 +94,7 @@ class Database(object):
   def close(self):
     self.conn.close()
   
+  @Decorators.openAndClose
   def _executeCommand(self, cmd):
     #print(cmd)
     self.cursor.execute(cmd)
@@ -82,25 +106,32 @@ class Database(object):
   def loadRandomBoard(self, rows, columns):
     """ Retrieve a random <rows> x <columns> board from the database and return it """
     
+    # columns to load
+    columnNames = ["id", "initial_board", "final_board", "creation_date",
+                   "shortest_solve", "longest_solve", "mean_solve",
+                   "std_solve", "solve_count", "stats"]
+    
     cmd  = """SELECT * FROM boards{}x{} ORDER BY RANDOM() LIMIT 1""".format(rows, columns)
     ret = self._executeCommand(cmd)
     
     if len(ret) != 1:
       return None
       #raise SystemError("No boards in the {}x{} table".format(rows, columns))
-
-    board = ret[0]
-    return {
-      "id":           board[0],
-      "initialBoard": json.loads(board[1]),
-      "finalBoard":   json.loads(board[2]),
-      "creationDate": json.loads(board[3]),
-      "stats":        json.loads(board[4])
-    }
+    
+    # create and return the board
+    boardDict = dict(zip(columnNames, ret[0]))
+    for jsonKey in ["initial_board", "final_board", "stats"]:
+      boardDict[jsonKey] = json.loads(boardDict[jsonKey])
+    return Board.createBoard(rows, columns, **boardDict)
     
   
   def loadBoard(self, rows, columns, boardID):
     """ Load a board from the <rows> x <columns> table with the given ID """
+
+    # columns to load
+    columnNames = ["id", "initial_board", "final_board", "creation_date",
+                   "shortest_solve", "longest_solve", "mean_solve",
+                   "std_solve", "solve_count", "stats"]
     
     # get the board
     cmd = """SELECT * FROM boards{}x{} WHERE id = {};""".format(rows, columns, boardID)
@@ -110,19 +141,18 @@ class Database(object):
     if len(ret) != 1:
       return None
     else:
-      board = ret[0]
-      return {
-        "id":           board[0],
-        "initialBoard": json.loads(board[1]),
-        "finalBoard":   json.loads(board[2]),
-        "creationDate": json.loads(board[3]),
-        "stats":        json.loads(board[4])
-      }
+      boardDict = dict(zip(columnNames, ret[0]))
+      for jsonKey in ["initial_board", "final_board", "stats"]:
+        boardDict[jsonKey] = json.loads(boardDict[jsonKey])
+      return Board.createBoard(rows, columns, **boardDict)
   
   
   def storeBoard(self, rows, columns, boardID, initialBoard, finalBoard, creationDate, stats):
     """ Store a board in the <rows> x <columns> table """
-  
+    
+    # create the table if it doesn't exist
+    self._createBoardTable(rows, columns)
+    
     # get the board with the given boardID to see if it already exists
     cmd  = """SELECT * FROM boards{}x{} WHERE id = {};""".format(rows, columns, boardID)
     ret = self._executeCommand(cmd)
@@ -130,6 +160,8 @@ class Database(object):
     # if the board already exists
     if len(ret) != 0:
       raise SystemError("Board with id {} already exists".format(boardID))
+    
+    
     
     # insert the new board
     cmd  = """INSERT INTO boards{}x{}(id, initial_board, final_board, creation_date, stats) """ \
@@ -180,7 +212,14 @@ class Database(object):
     
     return boardsInfo
   
+  
+  def _createBoardTable(self, rows, columns):
+    """ Create a board table if it doesn't alread exist """
     
+    if self.getBoardsInfo().get((rows, columns), None) is None:
+      tableDefinition = DatabaseSetup.getBoardTableDefinition(rows, columns)
+      self._executeCommand(tableDefinition)
+
   def _getTableLength(self, tableName):
     """ Return the number of entries in the given table """
     

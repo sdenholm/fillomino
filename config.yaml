@@ -1,3 +1,4 @@
 columns: 10
 database-file: boards.db
 rows: 10
+version: 1.0

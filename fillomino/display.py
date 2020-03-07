@@ -36,6 +36,10 @@ class GUI(object):
     """ Status notification; used or ignored, up to the GUI """
     raise NotImplementedError("subclass must implement")
   
+  def setBoardTitle(self, title):
+    """ Set the title of the board """
+    raise NotImplementedError("subclass must implement")
+
   def updateCell(self, row, column):
     """ Called when the given board cell is updated """
     raise NotImplementedError("subclass must implement")
@@ -44,6 +48,14 @@ class PyQtGUI(GUI, QtCore.QObject):
   """
   """
 
+  # call gui function from other threads
+  funcCall = QtCore.pyqtSignal(object)
+  
+  @QtCore.pyqtSlot(object)
+  def remoteCall(self, func):
+    """ Allows us to call GUI functions from other threads """
+    func()
+  
   def notifyStatus(self, text):
     pass
 
@@ -74,7 +86,7 @@ class PyQtGUI(GUI, QtCore.QObject):
         
         # if the user wants to stop an ongoing generation
         if buttonText == stopGenerationMsg:
-          gui.controller.stopGeneration = True
+          gui.controller.stopBoardGeneration()
           return
         
         # CHECK: row choice is valid
@@ -105,52 +117,59 @@ class PyQtGUI(GUI, QtCore.QObject):
         dialog.setStatus("Generating...")
         dialog.setProgress(0)
         
-        # thread to update the status and progress bar
-        global killThread
-        killThread = False
-        def updateStatus():
-          
+        # thread to update the progress bar
+        def monitorStatus():
           while True:
             
-            # display the progress
+            # get and display the progress
+            status   = gui.controller.getBoardGenerationStatus()
             progress = gui.controller.getBoardGenerationProgress()
-            dialog.setStatus(gui.controller.getBoardGenerationStatus())
-            dialog.setProgress(progress*100)
-            
-            # exit if we get the kill signal
-            if killThread:
+            dialog.funcCall.emit(lambda: dialog.setStatus(status))
+            dialog.funcCall.emit(lambda: dialog.setProgress(progress*100))
+
+            # exit if the generation thread has exited
+            if not generatorThread.isAlive():
+              
+              # revert the button text to the start message
+              dialog.funcCall.emit(lambda: dialog.setGenerateButtonText(startGenerationMsg))
+              dialog.funcCall.emit(lambda: dialog.updateDatabaseCount())
+
+              # update the database board count and notify the main window that
+              # we added new boards
+              dialog.funcCall.emit(lambda: dialog.updateDatabaseCount())
+              gui.funcCall.emit(lambda: gui.addedNewBoards())
+
+              dialog.funcCall.emit(lambda: dialog.setStatus(gui.controller.getBoardGenerationStatus()))
+              
               return
             
             time.sleep(0.5)
         
-        # create the monitoring thread and start board generation
-        monitorThread = threading.Thread(target=updateStatus)
-        monitorThread.start()
         
-        def genBoards():
-  
-          global killThread
-          
-          gui.controller.generateBoards(int(numBoards), int(rows), int(columns))
-          
-          # send the signal to kill the monitor thread and wait for it to exit
-          killThread = True
-          monitorThread.join()
-          
-          # revert the button text to the start message
-          dialog.setGenerateButtonText(startGenerationMsg)
-          
-          # update the database board count and notify the main window that
-          # we added new boards
-          dialog.updateDatabaseCount()
-          gui.addedNewBoards()
         
-        generatorThread = threading.Thread(target=genBoards)
+        # start board generation
+        generatorThread = threading.Thread(target=gui.controller.generateBoards,
+                                           args=(int(numBoards), int(rows), int(columns)))
         generatorThread.start()
-    
+
+        # create the monitoring thread
+        monitorThread = threading.Thread(target=monitorStatus)
+        monitorThread.start()
+
+    # call gui function from other threads
+    funcCall = QtCore.pyqtSignal(object)
+
+    @QtCore.pyqtSlot(object)
+    def remoteCall(self, func):
+      """ Allows us to call GUI functions from other threads """
+      func()
+      
     def __init__(self, parent, gui):
       super().__init__(parent)
-    
+
+      # update dialog from a different thread
+      self.funcCall.connect(self.remoteCall)
+      
       # reference to our parent gui
       self.gui = gui
     
@@ -657,6 +676,9 @@ class PyQtGUI(GUI, QtCore.QObject):
     
     super().__init__()
     
+    # update GUI from a different thread
+    self.funcCall.connect(self.remoteCall)
+    
     # references to controller and the board to display
     self.controller = controller
     self.board      = board
@@ -730,7 +752,7 @@ class PyQtGUI(GUI, QtCore.QObject):
     
     
     self.mainWindow = QtWidgets.QWidget()
-    self.mainWindow.setWindowTitle("Fillomino v0.1")
+    self.mainWindow.setWindowTitle("Fillomino")
     
     # register function for keyboard presses
     self.mainWindow.keyPressEvent = lambda event: PyQtGUI.UserActions.keyPressed(self, event)
@@ -779,7 +801,7 @@ class PyQtGUI(GUI, QtCore.QObject):
       self._getGameGrid()[x][y].setStyleSheet(style)
 
 
-  def _clearBoard(self):
+  def clearBoard(self):
     """ Clear the board grid and reset any messages or statuses """
   
     # get the dimensions of the board
@@ -796,11 +818,19 @@ class PyQtGUI(GUI, QtCore.QObject):
   
     # clear the status text
     self._setStatusText("")
+    
+    # clear the board title
+    self.setBoardTitle("")
+    
 
 
   def _highlightGroups(self):
     """ Highlight the valid, invalid and orphan groups """
-  
+    
+    # nothing to do without a board
+    if self.board is None:
+      return
+    
     validGroups = self.board.getValidGroups()
     invalidGroups = self.board.getInvalidGroups()
     orphanGroups = self.board.getOrphanGroups()
@@ -893,7 +923,7 @@ class PyQtGUI(GUI, QtCore.QObject):
       #self._setupAppLayout(rows, columns)
     
     # clear any past boards
-    self._clearBoard()
+    self.clearBoard()#
     
     # set the value for each initial cell
     for row in range(rows):
@@ -905,8 +935,14 @@ class PyQtGUI(GUI, QtCore.QObject):
     
     # highlight the groups
     self._highlightGroups()
+
+    # set the board title
+    self.setBoardTitle(board.getBoardStats("creation_date"))
     
-    
+  def setBoardTitle(self, title):
+    """ Set the title of the board """
+    self.mainWindow.setWindowTitle("Fillomino - {}".format(title))
+  
   def updateCell(self, x, y):
     """ Update a single cell and any highlighting that may have changed """
     

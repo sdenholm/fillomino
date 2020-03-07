@@ -1,7 +1,9 @@
+from concurrent import futures
 import os
 import logging
 import sys
 import time
+from multiprocessing.pool import ThreadPool
 
 import yaml
 
@@ -14,11 +16,12 @@ import numpy as np
 
 from fillomino.board import Board
 from fillomino.display import PyQtGUI
-from fillomino.database import Database
+from fillomino.database import Database, DatabaseSetup
 
 from boardGenerator.generator import BoardGenerator, GenerationFailedError
 
 class Controller(object):
+  
   
   @staticmethod
   def _loadConfigFile(configFileLoc):
@@ -28,9 +31,16 @@ class Controller(object):
     if not os.path.exists(configFileLoc):
       raise FileNotFoundError("Cannot find config file at: {}".format(configFileLoc))
     
-    # load and return the config data
+    # load the config data
     with open(configFileLoc, 'r') as f:
       configData = yaml.safe_load(f)
+      
+    # check we have the correct data
+    entryNames = ["database-file", "rows", "columns", "version"]
+    for entry in entryNames:
+      if configData.get(entry, None) is None:
+        raise SystemError("Config file is missing an entry for {}".format(entry))
+      
     return configData
   
   @staticmethod
@@ -62,17 +72,21 @@ class Controller(object):
     # config data:
     #  -database location
     #  -default rows x columns
+    #  -version
     self.databaseLoc = self.configData["database-file"]
     self.rows        = self.configData["rows"]
     self.columns     = self.configData["columns"]
+    self.version     = self.configData["version"]
     
     # make sure there is a board database
-    if not os.path.exists(self.databaseLoc):
-      raise SystemError("Board database does not exist")
+    #if not os.path.exists(self.databaseLoc):
+    #  raise SystemError("Board database does not exist")
 
-    # connect to the database
+    # board database
+    #  -if the database doesn't exist, create it
+    if not os.path.exists(self.databaseLoc):
+      DatabaseSetup.createDatabase(self.databaseLoc)
     self.db = Database(self.databaseLoc)
-    self.db.connect()
     
     # disable board editing
     self.editingEnabled = False
@@ -88,6 +102,10 @@ class Controller(object):
     # create a GUI
     self.gui = PyQtGUI(self, self.board)
     
+    
+  def _updateConfig(self, **kwargs):
+    """ Update the configuration data """
+    Controller._updateConfigFile(self.configFileLoc, kwargs)
   
   def getBoardGenerationStatus(self):
     return self.boardGenerationStatus
@@ -95,13 +113,18 @@ class Controller(object):
   def getBoardGenerationProgress(self):
     return self.boardGenerationProgress
   
-  def _updateConfig(self, **kwargs):
-    """ Update the configuration data """
-    Controller._updateConfigFile(self.configFileLoc, kwargs)
-  
   def getBoardsInfo(self):
     """ Get information about each of the board types available """
     return self.db.getBoardsInfo()
+
+  def getNumberOfBoards(self, rows, columns):
+    """ How many (rows x columns) boards are in the database """
+  
+    boardInfo = self.getBoardsInfo()
+    if boardInfo is None or not boardInfo.get((rows, columns), False):
+      return 0
+    else:
+      return boardInfo.get((rows, columns))["length"]
   
   def loadBoard(self, rows, columns, boardID=None):
     """
@@ -112,8 +135,10 @@ class Controller(object):
     
     # load in a random board
     if boardID is None:
-      boardInfo = self.db.loadRandomBoard(rows=rows, columns=columns)
-      if boardInfo is None:
+      board = self.db.loadRandomBoard(rows=rows, columns=columns)
+      #board = Board.getExampleBoard()
+      #board = BoardGenerator.defineInitialBoardState(board)
+      if board is None:
         self.gui.notifyStatus("Failed to load a random {}x{} board".format(rows, columns))
         return
       
@@ -121,41 +146,24 @@ class Controller(object):
     else:
       
       # make sure the board exists
-      boardInfo = self.db.loadBoard(rows=rows, columns=columns, boardID=boardID)
-      if boardInfo is None:
+      board = self.db.loadBoard(rows=rows, columns=columns, boardID=boardID)
+      if board is None:
         self.gui.notifyStatus("No {}x{} board with ID {} exists".format(rows, columns, boardID))
         return
     
     # set the new row and column dimensions
+    self.board   = board
     self.rows    = rows
     self.columns = columns
-    
-    """
-    # randList = list(map(int, np.random.randint(0,9,self.rows*self.columns)))
-    initList = [8] * 6 + [0] * 14 + [0] * 40 + [7] * 6 + [0] * 14 + [0] * 16 * 20
-    finalList = [8] * 8 + [0] * 12 + [0] * 40 + [7] * 7 + [0] * 13 + [0] * 16 * 20
 
-    boardInfo = {
-      "initialBoard": initList,
-      "finalBoard": finalList,
-      "stats": {}
-    }
-    """
-    
     # create a new board from this info
     #self.board = Board.getExampleBoard()
-    self.board = Board.createBoard(self.rows, self.columns,
-                                   initialValuesList=boardInfo["initialBoard"],
-                                   finalValuesList=boardInfo["finalBoard"],
-                                   stats=boardInfo["stats"])
-    
     
     # update the gui
     self.gui.displayNewBoard(self.board)
 
     # enable editing
     self.editingEnabled = True
-    
   
   def run(self):
     self.gui.run()
@@ -206,20 +214,17 @@ class Controller(object):
     # display finished message
     self.gui.boardComplete()
   
-  def getNumberOfBoards(self, rows, columns):
-    """ How many (rows x columns) boards are in the database """
-    
-    boardInfo = self.getBoardsInfo()
-    if boardInfo is None or not boardInfo.get((rows, columns), False):
-      return 0
-    else:
-      return boardInfo.get((rows, columns))["length"]
+
   
   def loadRandomBoard(self):
     """ Return a random board from the database """
-    
+
+
     rows    = self.rows
     columns = self.columns
+
+    self.loadBoard(rows, columns)
+    return
     
     if self.getNumberOfBoards(rows, columns) == 0:
       self.gui.notifyStatus("No {}x{} boards in the database".format(rows, columns))
@@ -234,9 +239,82 @@ class Controller(object):
   def stopBoardGeneration(self):
     """ Signal any current board generation to stop """
     self.stopGeneration = True
+
   
-  def generateBoards(self, numberOfBoards, rows, columns, maxAttempts=50):
+  @staticmethod
+  def _parallelGenerate(dimensions, maxAttempts=50):
+    """ Function called by processes in generateBoards() """
+    
+    # get the dimensions
+    rows, columns = dimensions
+    
+    # try <maxAttempt> times to generate a board
+    for _ in range(maxAttempts):
+      try:
+      
+        # generate the board
+        generator = BoardGenerator(rows=rows, columns=columns)
+        newBoard, timeTaken = generator.generate()
+        return newBoard
+    
+      # failed to generate a board
+      except GenerationFailedError:
+        pass
+      
+      time.sleep(0.1)
+      
+    # we have reached our attempt limit, raise an error
+    errMsg = "Exceeded maximum ({}) number of attempts to generate a {}x{} board" \
+      .format(maxAttempts, rows, columns)
+    raise GenerationFailedError(errMsg)
+  
+  
+  def generateBoards(self, numberOfBoards, rows, columns):
     """ Generate and store new boards"""
+  
+    # CHECK: rows and columns are valid
+    if rows < self.board.MIN_BOARD_ROWS or columns < self.board.MIN_BOARD_COLUMNS:
+      self.boardGenerationStatus = "ERROR: minimum dimensions: ({}x{})" \
+        .format(self.board.MIN_BOARD_ROWS, self.board.MIN_BOARD_COLUMNS)
+      self.boardGenerationProgress = 0
+      return
+  
+    # reset stop signal and status
+    self.stopGeneration = False
+    self.boardGenerationStatus = "Generating..."
+    self.boardGenerationProgress = 0
+    
+    # create a process pool to cycle through each board generation
+    with futures.ProcessPoolExecutor() as executor:
+      for board in executor.map(Controller._parallelGenerate,
+                                [(rows, columns)]*numberOfBoards):
+        
+        # store the board
+        self.storeGeneratedBoard(board)
+  
+        # update the status
+        self.boardGenerationProgress += 1/numberOfBoards
+  
+        # if we have been given the signal to stop
+        if self.stopGeneration:
+          self.stopGeneration = False
+          self.boardGenerationStatus = "Board generation halted"
+          return
+  
+    
+    self.boardGenerationStatus = "Generation Complete"
+    self.boardGenerationProgress = 1.0
+
+  def DEPgenerateBoards(self, numberOfBoards, rows, columns, maxAttempts=50, numProcessors=4):
+    """ Generate and store new boards"""
+    
+    # CHECK: rows and columns are valid
+    if rows < self.board.MIN_BOARD_ROWS or columns < self.board.MIN_BOARD_COLUMNS:
+      self.boardGenerationStatus = "ERROR: minimum dimensions: ({}x{})"\
+                        .format(self.board.MIN_BOARD_ROWS, self.board.MIN_BOARD_COLUMNS)
+      self.boardGenerationProgress = 0
+      return
+    
     
     # board generator
     generator = BoardGenerator(rows=rows, columns=columns)
@@ -267,7 +345,7 @@ class Controller(object):
           # if we have been given the signal to stop
           if self.stopGeneration:
             self.stopGeneration = False
-            self.gui.notifyStatus("Board generation halted")
+            self.boardGenerationStatus = "Board generation halted"
             return
           
           time.sleep(0.01)
@@ -279,7 +357,7 @@ class Controller(object):
           # if we have been given the signal to stop
           if self.stopGeneration:
             self.stopGeneration = False
-            self.gui.notifyStatus("Board generation halted")
+            self.boardGenerationStatus = "Board generation halted"
             return
           
           # if we have reached our attempt limit, raise an error
@@ -289,14 +367,14 @@ class Controller(object):
                       .format(maxAttempts, rows, columns)
             raise GenerationFailedError(errMsg)
 
-    self.boardGenerationStatus   = "Finished generation"
+    self.boardGenerationStatus   = "Generation Complete"
     self.boardGenerationProgress = 1.0
   
-  def storeGeneratedBoard(self, initialBoard, finalBoard):
+  def storeGeneratedBoard(self, board):
     """ Store a newly generated board in the database """
     
     # row and column info from the board
-    rows, columns = finalBoard.getBoardDimensions()
+    rows, columns = board.getBoardDimensions()
     
     # ID is just the current timestamp
     created      = datetime.datetime.utcnow()
@@ -304,8 +382,8 @@ class Controller(object):
     creationDate = str(created)
     
     # boards as lists
-    initialBoardList = list(map(int, initialBoard.getValues().flatten()))
-    finalBoardList   = list(map(int, finalBoard.getValues().flatten()))
+    initialBoardList = list(map(int, board.getInitialValues().flatten()))
+    finalBoardList   = list(map(int, board.getFinalValues().flatten()))
     
     # store the board
     self.db.storeBoard(rows         = rows,
@@ -315,7 +393,15 @@ class Controller(object):
                        finalBoard   = finalBoardList,
                        creationDate = creationDate,
                        stats        = {})
+  
+  
+  def clearBoard(self):
+    """ Clear the board and reset all baord-specific information"""
     
+    self.board = None
+    
+    # tell the gui to clear the board
+    self.gui.clearBoard()
   
   def resetBoard(self):
     """ Reset the board state back to its initial values """
@@ -332,8 +418,10 @@ class Controller(object):
   def clearErrors(self):
     """ Clear any cells that don't match the final board values """
     
-    # clear errors
-    self.board.clearErrors()
-
-    # update the gui
-    self.gui.displayNewBoard(self.board)
+    if self.editingEnabled:
+      
+      # clear errors
+      self.board.clearErrors()
+  
+      # update the gui
+      self.gui.displayNewBoard(self.board)

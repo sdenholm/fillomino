@@ -504,9 +504,9 @@ class BoardGenerator(object):
       raise SystemError(errMsg)
     
     # create the initial state of the board
-    initialBoard = BoardGenerator.defineInitialBoardState(bd)
+    bd = BoardGenerator.defineInitialBoardState(bd)
     
-    return initialBoard, bd, timeTaken
+    return bd, timeTaken
   
   
   @staticmethod
@@ -617,11 +617,66 @@ class BoardGenerator(object):
       board.updateGroups()
       return board, False
   
+  
   @staticmethod
-  def defineInitialBoardState(finalBoard):
-    """ Define the initial state of a finished board """
+  def _findIndicesToRemove(groupNum, probToKeep):
     
-    return finalBoard
+    # total number to key (at least 1)
+    numToKeep = max(1, int(np.sum(np.random.binomial(1, probToKeep, groupNum))))
+    print(groupNum, "-", numToKeep)
+    
+    # randomly choose <total-numToKeep> cells to remove
+    return np.random.choice(list(range(groupNum)), groupNum - numToKeep, replace=False)
+  
+  @staticmethod
+  def defineInitialBoardState(board):
+    """
+    # Define the initial state of a finished board
+    #
+    # Remove X cells from each finished group, where the probability of a
+    # cell being removed is proporitional to the group size (+- some magic)
+    #
+    """
+    
+    board = copy.deepcopy(board)
+    
+    # set the final values
+    board.finalValues = board.values.copy()
+    
+    # completed number groups
+    groups = board.getValidGroups()
+    
+    # list of cells we will remove
+    toRemove = CellList()
+    
+    # probabilities to keep a cell in each numbered group
+    probToKeep = {
+      2: 1/2,
+      3: 1/3,
+      4: 1/4,
+      5: 1/(5-1),
+      6: 1/(6-1),
+      7: 1/(7-2),
+      8: 1/(8-2),
+      9: 1/(9-2)
+    }
+
+    # for each numbered group
+    for groupNum in range(2,10):
+      for group in groups[groupNum]:
+        # randomly find X cells to remove, keeping at least one cell per group
+        for indexToRemove in BoardGenerator._findIndicesToRemove(groupNum, probToKeep[groupNum]):
+          toRemove.append(group[indexToRemove])
+    
+    # remove the cells
+    for cellToRemove in toRemove:
+      board.updateCell(*cellToRemove, 0, updateGroups=False, updateInitialCells=True)
+      board.updateGroups()
+    
+    # set the initial values
+    board.initialValues = board.values.copy()
+    
+    return board
   
   
   @staticmethod

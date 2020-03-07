@@ -5,6 +5,9 @@ import numpy as np
 
 class Board(object):
   
+  MIN_BOARD_ROWS = 5
+  MIN_BOARD_COLUMNS = 5
+  
   @staticmethod
   def getExampleBoard():
   
@@ -60,13 +63,22 @@ class Board(object):
     almostComplete[19][19] = 0
     
     return Board(rows=rows, columns=columns,
-                 initialValues=almostComplete,
-                 finalValues=finalArr,
-                 stats=None)
+                 initialValues=finalArr,
+                 finalValues=finalArr)
+    
+    #return Board(rows=rows, columns=columns,
+    #             initialValues=almostComplete,
+    #             finalValues=finalArr)
     
   @staticmethod
-  def createBoard(rows, columns, initialValuesList, finalValuesList, stats):
+  def createBoard(rows, columns, **kwargs):
     """ Create a board using lists """
+    
+    # need initial and final board values
+    initialBoardList = kwargs.get("initial_board", None)
+    finalBoardList   = kwargs.get("final_board", None)
+    if initialBoardList is None or finalBoardList is None:
+      raise ValueError("Must supply both initial_values and final_values")
     
     initialArr = np.zeros((rows, columns), np.int8)
     finalArr   = np.zeros((rows, columns), np.int8)
@@ -74,15 +86,20 @@ class Board(object):
     # convert the lists to arrays
     for row in range(rows):
       for column in range(columns):
-        initialArr[row][column] = initialValuesList[row*rows + column]
-        finalArr[row][column]   = finalValuesList[row*rows + column]
+        initialArr[row][column] = initialBoardList[row*rows + column]
+        finalArr[row][column]   = finalBoardList[row*rows + column]
     
     
     # create the board
     board = Board(rows=rows, columns=columns,
                   initialValues=initialArr,
-                  finalValues=finalArr,
-                  stats=stats)
+                  finalValues=finalArr)
+    
+    # add stats
+    boardStats = kwargs.copy()
+    del boardStats["initial_board"]
+    del boardStats["final_board"]
+    board.setBoardStats(**boardStats)
     
     """
     # set its values
@@ -97,7 +114,7 @@ class Board(object):
     return board
   
   
-  def __init__(self, rows, columns, initialValues=None, finalValues=None, stats=None):
+  def __init__(self, rows, columns, initialValues=None, finalValues=None):
     """
     # -initialValues: (array)
     # -finalValues:   (array)
@@ -109,17 +126,14 @@ class Board(object):
     if initialValues is None:
       initialValues = np.zeros((rows, columns), np.int8)
       
-    # no stats
-    if stats is None:
-      stats = {}
-      
+    self.stats = {}
+    
     self.rows    = rows
     self.columns = columns
     self.values  = initialValues.copy()
     
     self.initialValues = initialValues
     self.finalValues   = finalValues
-    self.stats         = stats
     
     # groups:
     #  -groups with the correct number of members
@@ -131,15 +145,43 @@ class Board(object):
     
     # gather the group information
     self.updateGroups()
+    
+  def __deepcopy__(self, memodict={}):
+    """ Make a copy of this board """
+    
+    newBoard = Board(rows          = self.rows,
+                     columns       = self.columns,
+                     initialValues = self.initialValues,
+                     finalValues   = self.finalValues)
+    
+    # copy the stats
+    newBoard.setBoardStats(**self.stats)
+    
+    # copy the current values
+    newBoard.values = self.values.copy()
+    
+    # copy the group info
+    newBoard.invalidGroups.update(self.getInvalidGroups())
+    newBoard.validGroups.update(self.getValidGroups())
+    newBoard.orphanGroups.update(self.getOrphanGroups())
+    
+    return newBoard
   
-  
-  def getValues(self):        return self.values
+
+  def getBoardDimensions(self): return self.values.shape
   def getCellValue(self,row,col): return self.values.item(row,col)
-  def getValidGroups(self):   return self.validGroups
+  def getFinalValues(self): return self.finalValues
+  def getInitialValues(self): return self.initialValues
   def getInvalidGroups(self): return self.invalidGroups
   def getOrphanGroups(self):  return self.orphanGroups
-  def getBoardDimensions(self): return self.values.shape
+  def getValues(self):        return self.values
+  def getValidGroups(self):   return self.validGroups
   
+  def getBoardStats(self, statName):
+    return self.stats.get(statName, None)
+  
+  def setBoardStats(self, **kwargs):
+    self.stats.update(kwargs)
   
   def isInitialCell(self, row, column):
     """ Was this cell initialised with a value """
@@ -168,11 +210,11 @@ class Board(object):
     self.updateGroups()
     
     
-  def updateCell(self, x, y, value, updateGroups=True):
+  def updateCell(self, x, y, value, updateGroups=True, updateInitialCells=False):
     """ Update the value of an individual cell """
     
-    # can't update initial value cells
-    if self.initialValues[x][y] != 0:
+    # can't update initial value cells unless overridden
+    if self.initialValues[x][y] != 0 and not updateInitialCells:
       return
     
     # update cell and the group info
