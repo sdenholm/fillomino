@@ -1,4 +1,4 @@
-columns: 10
+columns: 20
 database-file: boards.db
-rows: 10
+rows: 20
 version: 1.0

@@ -1,16 +1,19 @@
+
 import logging
 logger = logging.getLogger(__name__)
 
 import numpy as np
 
+
 class Board(object):
   
-  MIN_BOARD_ROWS = 5
+  MIN_BOARD_ROWS    = 5
   MIN_BOARD_COLUMNS = 5
   
   @staticmethod
   def getExampleBoard():
-  
+    """ An example 20x20 board for testing """
+    
     rows    = 20
     columns = 20
     
@@ -63,13 +66,22 @@ class Board(object):
     almostComplete[19][19] = 0
     
     return Board(rows=rows, columns=columns,
-                 initialValues=finalArr,
+                 initialValues=arr,
                  finalValues=finalArr)
     
     #return Board(rows=rows, columns=columns,
     #             initialValues=almostComplete,
     #             finalValues=finalArr)
+  
+  @staticmethod
+  def getExampleFinishedBoard():
+    """ Return a finished board for testing purposes """
     
+    board = Board.getExampleBoard()
+    board.values = board.finalValues
+    board.updateGroups()
+    return board
+  
   @staticmethod
   def createBoard(rows, columns, **kwargs):
     """ Create a board using lists """

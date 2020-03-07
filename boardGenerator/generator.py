@@ -1,9 +1,12 @@
+import logging
+logger = logging.getLogger(__name__)
+
 import copy
 import datetime
 
-from scipy import signal
-
 import numpy as np
+
+from scipy import signal
 
 from fillomino.board import Board
 
@@ -28,12 +31,15 @@ class CellList(object):
     self.cells = {}
   
   def append(self, item):
+    """ Add a cell """
+    
     row, col = item
     rowCells        = self.cells.get(row, {})
     rowCells[col]   = True
     self.cells[row] = rowCells
   
   def remove(self, item):
+    """ Remove a cell """
     if self.__contains__(item):
       row, col = item
       del self.cells[row][col]
@@ -41,6 +47,7 @@ class CellList(object):
         del self.cells[row]
   
   def pop(self):
+    """ Pop a cell from somewhere """
     for row,col in iter(self):
       del self.cells[row][col]
       if len(self.cells[row]) == 0:
@@ -50,9 +57,7 @@ class CellList(object):
   
   def randomCell(self):
     """ Return a randomly chosen cell """
-    #row = np.random.choice(list(self.cells.keys()))
-    #col = np.random.choice(list(self.cells[row].keys()))
-    #return row, col
+    
     allCells   = (list(iter(self)))
     cellChoice = np.random.randint(0, len(allCells))
     return allCells[cellChoice]
@@ -266,7 +271,6 @@ class BoardGenerator(object):
     """ Add in 1's at random places of the board, making sure they're all valid """
     
     # locations of cells we've added
-    #oneCells = []
     usedCells = CellList()
     
     # get board dimensions
@@ -274,27 +278,24 @@ class BoardGenerator(object):
     
     for i in range(numOnes):
       
-      # loop until we add a valid "1"
+      # loop until we add a "1" to a valid location on the board
       while True:
         row = np.random.randint(0, rows)
         col = np.random.randint(0, columns)
         
-        
         # make sure we haven't randomly selected this location before
-        #if (row, col) in oneCells:
         if (row, col) in usedCells:
           continue
         
         # set the location to 1
         board.values.itemset(row, col, 1)
       
-        # make sure we don't have any island 1's
+        # make sure we haven't created a group of island 1's
         if not BoardGenerator.hasIslandOnes(board):
         
           # if the board is still valid after our change, move on
           board.updateGroups()
           if board.isBoardValid():
-            #oneCells.append((row,col))
             usedCells.append((row, col))
             break
       
@@ -303,16 +304,18 @@ class BoardGenerator(object):
 
     
     # return the board and the new cell location
-    return board, usedCells #oneCells
+    return board, usedCells
   
   
   @staticmethod
   def findBlankRegions(freeCells):
     """
-    # find number of "blank" regions we have
+    # Find number of "blank" regions we have. Walk along the freeCells list
+    # until we run out of cells or walk into a previously visited cell.
     #
+    # Idea is split a group of freeCells up into 1 or more connected regions.
     #
-    # -freeCells: (CellList)
+    # -freeCells: (CellList) of blank cells
     #
     """
     
@@ -324,10 +327,11 @@ class BoardGenerator(object):
     # walk along the freeCells
     while freeCells:
       
-      # get a free cell
+      # remove a free cell
       row, column = freeCells.pop()
       
-      # walk along all the connected free cells to find the blank region
+      # walk from this cell, along all the connected free cells, in order to
+      # find the extent of this blank region
       blankRegions.append(BoardGenerator._walkFreeCells(row, column, freeCells))
     
     # return all the blank regions we found
@@ -390,6 +394,7 @@ class BoardGenerator(object):
     # cells.
     #
     """
+    logger.debug("populating regions")
     
     # list of cell groups that couldn't be filled in the random group-adding
     #  -will be of size 9 or smaller
@@ -454,10 +459,11 @@ class BoardGenerator(object):
     bd = Board(rows=self.rows, columns=self.columns)
     
     # add in some random 1's
-    numOnesLowerBound = int(np.ceil(self.rows * self.columns * 0.10))
-    numOnesUpperBound = int(np.ceil(self.rows * self.columns * 0.15))
+    numOnesLowerBound = int(np.ceil(self.rows * self.columns * 0.15))
+    numOnesUpperBound = int(np.ceil(self.rows * self.columns * 0.20))
     numOnes = np.random.randint(numOnesLowerBound, numOnesUpperBound)
     bd, usedCells = BoardGenerator.addInitialOnes(bd, numOnes)
+    logger.debug("{} one-cells".format(numOnes))
     
     # list of all available cells
     freeCells = CellList.filledList(self.rows, self.columns)
@@ -471,17 +477,13 @@ class BoardGenerator(object):
     # number groups
     bd, loneGroupList = BoardGenerator.populateRegions(bd, freeCells)
     
-    #print(len(loneGroupList), " lone groups")
-    #print([str(x) for x in loneGroupList])
-    
-    
     # if we have lone groups of cells that we couldn't fill, try to
     # merge them into their neighbour's groups
+    logger.debug("{} lone cell groups".format(len(loneGroupList)))
     for iCell, loneGroup in enumerate(loneGroupList):
       
       # try to add the cell to the (N,S,W,E)
       try:
-        #print("GROUP: ", len(loneGroup), " - ", loneGroup)
         bd = BoardGenerator.mergeLoneGroup(bd, loneGroup)
         
       except GenerationFailedError:
@@ -491,10 +493,12 @@ class BoardGenerator(object):
         errMsg += "Time taken: {}\n".format(timeTaken)
         errMsg += "Lone cells remaining: {}\n".format(cellsRemaining)
         errMsg += "Board:\n{}".format(bd.getValues())
+        logger.debug("GenerationFailedError: {}".format(errMsg))
         raise GenerationFailedError(errMsg)
     
     # calculate the time taken
     timeTaken = datetime.datetime.utcnow() - startTime
+    logger.debug("Board done. Time taken: {}".format(timeTaken))
     
     # final board update and checks
     bd.updateGroups()
@@ -506,36 +510,25 @@ class BoardGenerator(object):
     # create the initial state of the board
     bd = BoardGenerator.defineInitialBoardState(bd)
     
-    return bd, timeTaken
+    return bd
   
   
   @staticmethod
   def mergeLoneGroup(board, cellList):
     """
-    # Try to merge a group of cells into one of their neighbours
+    # Try to merge a group of blank cells into one of their neighbours
     #
     #
     #
     """
-    # try to add the cell to the (N,S,W,E)
-    #  -check for invalid cell after each attempt
-    #  -ignore groups == 9
-    #  -if (N,S,W,E) fails:
-    #    -make it a 1 (if possible)
-    #    -merge it into a neighbour 1 to make a 2 (if possible)
-    #    -fail(?)
-    #    -try the other cells and come back later(?)
-    
-    #bdNew = BoardGenerator.mergeLoneGroup(bd, loneGroup)
-    
-    #print("lone cells: ", cellList)
+    logger.debug("lone cells: {}".format(cellList))
     
     # dimensions of grid
     maxRows, maxColumns = board.getBoardDimensions()
     
     neighbourGroups = []
     
-    # for each cell in the group, get its neighbour groups
+    # for each cell in the group
     for row, col in cellList:
       
       # look at each of its neighbours
@@ -564,14 +557,14 @@ class BoardGenerator(object):
               break
           
     
-    #print("neighbours")
-    #for neigh in neighbourGroups:
-    #  print(len(neigh), " - ", neigh)
+    logger.debug("neighbours:")
+    for neigh in neighbourGroups:
+      logger.debug("{} - {}".format(len(neigh), neigh))
     
     # if none of the neighbours are the same size as this group, just fill
     # in this group
     if len(cellList) not in [len(group) for group in neighbourGroups]:
-      #print("fill")
+      logger.debug("filling in group")
       board, success = BoardGenerator._tryAssignment(board, len(cellList), cellList)
       return board
     
@@ -593,7 +586,9 @@ class BoardGenerator(object):
       board.updateGroups()
       
     # no luck merging
-    raise GenerationFailedError("Could not merge lone cell group: {}".format(cellList))
+    msg = "Could not merge lone cell group: {}".format(cellList)
+    logger.debug(msg)
+    raise GenerationFailedError(msg)
     
   @staticmethod
   def _tryAssignment(board, regionSize, cellList):
@@ -627,6 +622,46 @@ class BoardGenerator(object):
     
     # randomly choose <total-numToKeep> cells to remove
     return np.random.choice(list(range(groupNum)), groupNum - numToKeep, replace=False)
+
+  @staticmethod
+  def _removeSparseAreas(rows, columns, cellList):
+    
+    # turn the empty cells into a rows x columns matrix
+    boardVals = np.zeros((rows, columns))
+    for cell in cellList:
+      boardVals.itemset(*cell, 1)
+    
+    # convolution filter looking for areas that will create an empty grid
+    emptyRow = int(np.floor(rows/10)) + 1
+    emptyCol = int(np.floor(columns/10)) + 1
+    emptyGrid = np.ones((emptyRow, emptyCol))
+    print(emptyGrid)
+    print("++++++++++")
+
+    # find emptiness
+    matches = signal.convolve2d(boardVals, emptyGrid, mode="same")
+    
+    print("matches", emptyGrid.size-1)
+    print(matches >= emptyGrid.size-1)
+    print("--------")
+    print(matches)
+    print("--------")
+    print(boardVals)
+    print("--------")
+    
+    # remove the gaps in the matrix
+    for row, col in list(zip(*np.where(matches >= emptyGrid.size-1))):
+      boardVals.itemset(row, col, 0)
+    print(boardVals)
+
+    print("=============================")
+    
+    # turn the matrix back into a cell list
+    newCellList = CellList()
+    for row, col in list(zip(*np.where(boardVals == 1))):
+      newCellList.append((row, col))
+    
+    return newCellList
   
   @staticmethod
   def defineInitialBoardState(board):
@@ -636,11 +671,16 @@ class BoardGenerator(object):
     # Remove X cells from each finished group, where the probability of a
     # cell being removed is proporitional to the group size (+- some magic)
     #
+    # -board: (Board) where the current values are that of a valid, completed board
     """
+    
+    # make sure the board is complete
+    if not board.isBoardComplete():
+      raise SystemError("Was passed an in-complete board")
     
     board = copy.deepcopy(board)
     
-    # set the final values
+    # make sure the final values are set
     board.finalValues = board.values.copy()
     
     # completed number groups
@@ -656,7 +696,7 @@ class BoardGenerator(object):
       4: 1/4,
       5: 1/(5-1),
       6: 1/(6-1),
-      7: 1/(7-2),
+      7: 1/(7-1),
       8: 1/(8-2),
       9: 1/(9-2)
     }
@@ -664,11 +704,17 @@ class BoardGenerator(object):
     # for each numbered group
     for groupNum in range(2,10):
       for group in groups[groupNum]:
+        
         # randomly find X cells to remove, keeping at least one cell per group
         for indexToRemove in BoardGenerator._findIndicesToRemove(groupNum, probToKeep[groupNum]):
           toRemove.append(group[indexToRemove])
     
-    # remove the cells
+    
+    # make sure the grid isn't too sparse by populating "empty" regions
+    rows, columns = board.getBoardDimensions()
+    toRemove = BoardGenerator._removeSparseAreas(rows, columns, toRemove)
+    
+    # blank out the board cells we have decided to remove
     for cellToRemove in toRemove:
       board.updateCell(*cellToRemove, 0, updateGroups=False, updateInitialCells=True)
       board.updateGroups()

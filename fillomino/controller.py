@@ -1,18 +1,15 @@
-from concurrent import futures
-import os
+
 import logging
-import sys
-import time
-from multiprocessing.pool import ThreadPool
-
-import yaml
-
 logger = logging.getLogger(__name__)
 
+import os
+import time
+import yaml
 import datetime
-from datetime import timedelta
 
 import numpy as np
+
+from concurrent import futures
 
 from fillomino.board import Board
 from fillomino.display import PyQtGUI
@@ -136,6 +133,7 @@ class Controller(object):
     # load in a random board
     if boardID is None:
       board = self.db.loadRandomBoard(rows=rows, columns=columns)
+      #board = Board.getExampleFinishedBoard()
       #board = Board.getExampleBoard()
       #board = BoardGenerator.defineInitialBoardState(board)
       if board is None:
@@ -243,7 +241,12 @@ class Controller(object):
   
   @staticmethod
   def _parallelGenerate(dimensions, maxAttempts=50):
-    """ Function called by processes in generateBoards() """
+    """
+    # Function called by processes in generateBoards(). Creates a new
+    # generator and attempts <maxAttempts> times to generate a board with
+    # the given dimensions
+    #
+    """
     
     # get the dimensions
     rows, columns = dimensions
@@ -252,10 +255,9 @@ class Controller(object):
     for _ in range(maxAttempts):
       try:
       
-        # generate the board
+        # generate and return the board
         generator = BoardGenerator(rows=rows, columns=columns)
-        newBoard, timeTaken = generator.generate()
-        return newBoard
+        return generator.generate()
     
       # failed to generate a board
       except GenerationFailedError:
@@ -270,7 +272,14 @@ class Controller(object):
   
   
   def generateBoards(self, numberOfBoards, rows, columns):
-    """ Generate and store new boards"""
+    """
+    # Generate and store some new boards
+    #
+    # -numberOfBoards: (int) number of boards to generate
+    # -rows:           (int) board rows
+    # -columns:        (int) board columns
+    #
+    """
   
     # CHECK: rows and columns are valid
     if rows < self.board.MIN_BOARD_ROWS or columns < self.board.MIN_BOARD_COLUMNS:
@@ -280,9 +289,9 @@ class Controller(object):
       return
   
     # reset stop signal and status
-    self.stopGeneration = False
-    self.boardGenerationStatus = "Generating..."
+    self.stopGeneration          = False
     self.boardGenerationProgress = 0
+    self.boardGenerationStatus   = "Generating..."
     
     # create a process pool to cycle through each board generation
     with futures.ProcessPoolExecutor() as executor:
@@ -301,74 +310,11 @@ class Controller(object):
           self.boardGenerationStatus = "Board generation halted"
           return
   
-    
+    # done
     self.boardGenerationStatus = "Generation Complete"
     self.boardGenerationProgress = 1.0
 
-  def DEPgenerateBoards(self, numberOfBoards, rows, columns, maxAttempts=50, numProcessors=4):
-    """ Generate and store new boards"""
-    
-    # CHECK: rows and columns are valid
-    if rows < self.board.MIN_BOARD_ROWS or columns < self.board.MIN_BOARD_COLUMNS:
-      self.boardGenerationStatus = "ERROR: minimum dimensions: ({}x{})"\
-                        .format(self.board.MIN_BOARD_ROWS, self.board.MIN_BOARD_COLUMNS)
-      self.boardGenerationProgress = 0
-      return
-    
-    
-    # board generator
-    generator = BoardGenerator(rows=rows, columns=columns)
-    
-    # reset stop signal and status
-    self.stopGeneration = False
-    self.boardGenerationStatus   = "Generating..."
-    self.boardGenerationProgress = 0
-    
-    # generate <numberOfBoards> boards
-    for i in range(numberOfBoards):
-      
-      # try <maxAttempt> times to generate a board
-      attempt = 0
-      time.sleep(0.01)
-      while True:
-        try:
-          
-          # generate the board
-          initialBoard, finalBoard, timeTaken = generator.generate()
-          
-          # store the board
-          self.storeGeneratedBoard(initialBoard, finalBoard)
-          
-          # update the status
-          self.boardGenerationProgress = (i+1) / numberOfBoards
-          
-          # if we have been given the signal to stop
-          if self.stopGeneration:
-            self.stopGeneration = False
-            self.boardGenerationStatus = "Board generation halted"
-            return
-          
-          time.sleep(0.01)
-          break
-          
-        # failed to generate a board
-        except GenerationFailedError as err:
-          
-          # if we have been given the signal to stop
-          if self.stopGeneration:
-            self.stopGeneration = False
-            self.boardGenerationStatus = "Board generation halted"
-            return
-          
-          # if we have reached our attempt limit, raise an error
-          attempt += 1
-          if attempt >= maxAttempts:
-            errMsg = "Exceeded maximum ({}) number of attempts to generate a {}x{} board"\
-                      .format(maxAttempts, rows, columns)
-            raise GenerationFailedError(errMsg)
-
-    self.boardGenerationStatus   = "Generation Complete"
-    self.boardGenerationProgress = 1.0
+  
   
   def storeGeneratedBoard(self, board):
     """ Store a newly generated board in the database """
@@ -378,8 +324,8 @@ class Controller(object):
     
     # ID is just the current timestamp
     created      = datetime.datetime.utcnow()
-    boardID      = int(np.floor(created.timestamp()*1000))
-    creationDate = str(created)
+    boardID      = int(np.floor(created.timestamp()*1000000))
+    creationDate = str(created.replace(microseconds=0))
     
     # boards as lists
     initialBoardList = list(map(int, board.getInitialValues().flatten()))
@@ -396,12 +342,13 @@ class Controller(object):
   
   
   def clearBoard(self):
-    """ Clear the board and reset all baord-specific information"""
+    """ Clear the board and reset all board-specific information"""
     
     self.board = None
     
     # tell the gui to clear the board
     self.gui.clearBoard()
+  
   
   def resetBoard(self):
     """ Reset the board state back to its initial values """
@@ -414,6 +361,7 @@ class Controller(object):
     
     # make sure editing is enabled
     self.editingEnabled = True
+    
     
   def clearErrors(self):
     """ Clear any cells that don't match the final board values """

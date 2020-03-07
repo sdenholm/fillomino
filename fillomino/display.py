@@ -1,17 +1,15 @@
-import datetime
-import logging
-import threading
-import time
 
+import logging
 logger = logging.getLogger(__name__)
 
+import threading
+import time
 import sys
-
-import PyQt5.QtCore as QtCore
-import PyQt5.QtGui as QtGui
 
 import numpy as np
 
+import PyQt5.QtCore as QtCore
+import PyQt5.QtGui as QtGui
 import PyQt5.QtWidgets as QtWidgets
 
 class GUI(object):

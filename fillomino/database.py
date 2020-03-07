@@ -1,14 +1,13 @@
+
 import logging
+logger = logging.getLogger(__name__)
+
+import os
+import json
+import sqlite3
 
 from fillomino.board import Board
 
-logger = logging.getLogger(__name__)
-
-import json
-import sqlite3
-from sqlite3 import Error
-
-import os
 
 class DatabaseSetup(object):
   
