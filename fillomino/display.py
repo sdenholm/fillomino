@@ -139,6 +139,8 @@ class PyQtGUI(GUI, QtCore.QObject):
             dialog.funcCall.emit(lambda: dialog.setStatus(status))
             dialog.funcCall.emit(lambda: dialog.setProgress(progress*100))
 
+            dialog.funcCall.emit(lambda: dialog.updateDatabaseCount())
+            
             # exit if the generation thread has exited
             if not generatorThread.isAlive():
               
@@ -148,7 +150,7 @@ class PyQtGUI(GUI, QtCore.QObject):
 
               # update the database board count and notify the main window that
               # we added new boards
-              dialog.funcCall.emit(lambda: dialog.updateDatabaseCount())
+              #dialog.funcCall.emit(lambda: dialog.updateDatabaseCount())
               gui.funcCall.emit(lambda: gui.addedNewBoards())
 
               dialog.funcCall.emit(lambda: dialog.setStatus(gui.controller.getBoardGenerationStatus()))
@@ -170,12 +172,14 @@ class PyQtGUI(GUI, QtCore.QObject):
 
     # call gui function from other threads
     funcCall = QtCore.pyqtSignal(object)
-
+    
+    
     @QtCore.pyqtSlot(object)
     def remoteCall(self, func):
       """ Allows us to call GUI functions from other threads """
       func()
-      
+    
+    
     def __init__(self, parent, gui):
       super().__init__(parent)
 

@@ -106,7 +106,9 @@ class CellList(object):
 
 class BoardGenerator(object):
   
-  threadLock = threading.RLock()
+  # numpy random is not thread-safe, so multiple threads get the same
+  # random numbers
+  numpyThreadLock = threading.RLock()
   
   # max times to try creating a new random group within a blank region
   MAX_GROUP_CREATION_ATTEMPTS = 200
@@ -644,7 +646,7 @@ class BoardGenerator(object):
   def _findIndicesToRemove(groupNum, probToKeep):
     
     # total number to key (at least 1)
-    with BoardGenerator.threadLock:
+    with BoardGenerator.numpyThreadLock:
       seed = abs(np.int32(threading.get_ident() + datetime.datetime.utcnow().timestamp()))
       np.random.seed(seed)
       numToKeep = max(1, int(np.sum(np.random.binomial(1, probToKeep, groupNum))))

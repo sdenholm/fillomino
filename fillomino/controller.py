@@ -401,7 +401,13 @@ When generation is done, select [File]=>[Load Random Board] from the main menu t
     # try <maxAttempt> times to generate a board
     for _ in range(maxAttempts):
       try:
-      
+        
+        # if we've been told to stop
+        #print(Controller.GENERATION_ENABLED)
+        #if self.stopGeneration:
+        #  return None
+        #  #raise GenerationFailedError("Generation is disabled")
+        
         # generate and return the board
         generator = BoardGenerator(rows=rows, columns=columns)
         return generator.generate()
@@ -438,12 +444,16 @@ When generation is done, select [File]=>[Load Random Board] from the main menu t
     # reset stop signal and status
     self.stopGeneration          = False
     self.boardGenerationProgress = 0
-    self.boardGenerationStatus   = "Generating..."
+    self.boardGenerationStatus   = "Generating {} boards...".format(numberOfBoards)
     
     # create a process pool to cycle through each board generation
     with futures.ProcessPoolExecutor() as executor:
       for board in executor.map(Controller._parallelGenerate,
                                 [(rows, columns)]*numberOfBoards):
+        
+        # if there was an issue with generation
+        if board is None:
+          continue
         
         # store the board
         self.storeGeneratedBoard(board)
@@ -454,6 +464,8 @@ When generation is done, select [File]=>[Load Random Board] from the main menu t
         # if we have been given the signal to stop
         if self.stopGeneration:
           self.stopGeneration = False
+          self.boardGenerationStatus = "Halting: waiting on processes..."
+          executor.shutdown()
           self.boardGenerationStatus = "Board generation halted"
           return
     
