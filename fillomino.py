@@ -18,7 +18,8 @@ except ImportError as err:
   raise err
 
 try:
-  os.remove("boards.db")
+  print("")
+  #os.remove("boards.db")
 except FileNotFoundError:
   pass
 

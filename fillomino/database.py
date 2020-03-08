@@ -34,6 +34,9 @@ class DatabaseInfo(object):
   def getTableColumns(tableName):
     """ Return the columns for the given table"""
     
+    """
+    id, creation_date, solve_fastest, solve_slowest, solve_mean, solve_var_pop, solve_count, stats
+    """
     if tableName.startswith("boards"):
       return ["id", "initial_board", "final_board", "creation_date",
               "solve_fastest", "solve_slowest", "solve_mean",
@@ -64,8 +67,8 @@ class DatabaseInfo(object):
         initial_board JSON,
         final_board   JSON,
         creation_date DATETIME,
-        solve_fastest INT UNSIGNED DEFAULT NULL,
-        solve_slowest INT UNSIGNED DEFAULT NULL,
+        solve_fastest FLOAT UNSIGNED DEFAULT NULL,
+        solve_slowest FLOAT UNSIGNED DEFAULT NULL,
         solve_mean    FLOAT UNSIGNED DEFAULT NULL,
         solve_var_pop FLOAT UNSIGNED DEFAULT NULL,
         solve_count   INT UNSIGNED DEFAULT 0,
@@ -108,7 +111,7 @@ class Database(object):
   
   @Decorators.openAndClose
   def _executeCommand(self, cmd, data=None):
-    #print(cmd)
+    #print("{}\n{}".format(cmd, data), end="")
     if data:
       self.cursor.execute(cmd, data)
     else:
@@ -135,15 +138,48 @@ class Database(object):
     # create and return the board
     return Board.createBoard(rows, columns, **boardDict)
   
+  
+  def loadUnsolvedBoard(self, rows, columns, excludeID=None):
+    """
+    # Retrieve a random, unsolved <rows> x <columns> board from the database
+    # and return it
+    #  -exclude any board with and ID of <excludeID>
+    #
+    """
+    
+    if excludeID:
+      excludeClause = "id != {} and ".format(excludeID)
+    else:
+      excludeClause = ""
+      
+    # columns to load
+    tableName   = "boards{}x{}".format(rows, columns)
+    columnNames = DatabaseInfo.getTableColumns(tableName)
+  
+    cmd = """ SELECT * FROM {} WHERE {} solve_count = 0 ORDER BY RANDOM() LIMIT 1 """\
+            .format(tableName, excludeClause)
+    ret = self._executeCommand(cmd)
+    
+    
+    # create and return the board
+    return Database._processLoadedBoard(rows, columns, ret, columnNames)
 
-  def loadRandomBoard(self, rows, columns):
-    """ Retrieve a random <rows> x <columns> board from the database and return it """
+
+  def loadRandomBoard(self, rows, columns, excludeID=None):
+    """
+    # Retrieve a random <rows> x <columns> board from the database and return it
+    #  -exclude any board with and ID of <excludeID>
+    #
+    """
+    
+    # if we're excluding a board
+    if excludeID: excludeClause = "WHERE id != {} ".format(excludeID)
+    else:         excludeClause = ""
     
     # columns to load
     tableName   = "boards{}x{}".format(rows, columns)
     columnNames = DatabaseInfo.getTableColumns(tableName)
-    
-    cmd  = """SELECT * FROM {} ORDER BY RANDOM() LIMIT 1""".format(tableName)
+    cmd  = """SELECT * FROM {} {}ORDER BY RANDOM() LIMIT 1""".format(tableName, excludeClause)
     ret = self._executeCommand(cmd)
     
     # create and return the board
@@ -152,7 +188,7 @@ class Database(object):
   
   def loadBoard(self, rows, columns, boardID):
     """ Load a board from the <rows> x <columns> table with the given ID """
-
+    
     # columns to load
     tableName   = "boards{}x{}".format(rows, columns)
     columnNames = DatabaseInfo.getTableColumns(tableName)
@@ -193,6 +229,16 @@ class Database(object):
     return self.cursor.lastrowid
   
   
+  def removeBoard(self, rows, columns, boardID):
+    """ Permanently delete the given board from the database """
+
+    tableName = "boards{}x{}".format(rows, columns)
+    
+    cmd = """ DELETE FROM {} WHERE id = {} LIMIT 1 """.format(tableName, boardID)
+    self._executeCommand(cmd)
+    return self.cursor.lastrowid
+    
+  
   def updateBoardStats(self, board):
     """ Update the stats of the given board """
     
@@ -209,34 +255,15 @@ class Database(object):
     
     tableName = "boards{}x{}".format(*board.getBoardDimensions())
     
-    ## construct the update command
-    #cmd  = """ UPDATE {} SET """.format(tableName)
-    #for k,v in boardStats.items():
-    #  if isinstance(v, int):   cmd += """ {} = {} """.format(k,v)
-    #  elif isinstance(v, str): cmd += """ {} = `{}` """.format(k,v)
-    #  else:
-    #    raise TypeError("Unknown type for key {}: {}".format(k, type(v)))
-    #cmd += """ WHERE id = {} """.format(board.getID())
-    
     cmd  = """ UPDATE {} SET """.format(tableName)
-    for k in boardStats.keys():
-      cmd += """ {} = ? """.format(k)
-    cmd += """ WHERE id = {} """.format(board.getID())
+    data = []
+    for k,v in boardStats.items():
+      cmd += """ {} = ?,""".format(k)
+      data.append(v)
+    cmd = cmd[:-1] + """ WHERE id = {} """.format(board.getID())
 
     # execute and return
-    self._executeCommand(cmd, data=list(boardStats.values()))
-    """
-    sql = ''' UPDATE tasks
-              SET priority = ? ,
-                  begin_date = ? ,
-                  end_date = ?
-              WHERE id = ?'''
-    cur = conn.cursor()
-    cur.execute(sql, task)
-    """
-    
-    # execute and return
-    #return self._executeCommand(cmd)
+    self._executeCommand(cmd, data=data)
   
   def getBoardsInfo(self):
     """

@@ -1,5 +1,7 @@
 
 import logging
+import threading
+
 logger = logging.getLogger(__name__)
 
 import os
@@ -95,12 +97,21 @@ class Controller(object):
     
     # stats stuff
     self.startTime = None
+
+    self.board = None
+    self.gui = None
     
-    # create a blank board
-    self.board = Board(rows=self.rows, columns=self.columns)
-    
+    # clear the board
+    self.clearBoard()
+
     # create a GUI
     self.gui = PyQtGUI(self, self.board)
+    
+    # create a blank board
+    #self.board = Board(rows=self.rows, columns=self.columns)
+    
+    # create a GUI
+    #self.gui = PyQtGUI(self, self.board)
     
   def DEP_updateTimeStats(self, newValue):
     """
@@ -157,39 +168,15 @@ class Controller(object):
     else:
       return boardInfo.get((rows, columns))["length"]
   
-  def loadBoard(self, rows, columns, boardID=None):
-    """
-    # For the given dimensions, either load in a random board or the board
-    # with the specifc ID (if it exists)
-    #
-    """
+
     
-    # load in a random board
-    if boardID is None:
-      board = self.db.loadRandomBoard(rows=rows, columns=columns)
-      #board = Board.getExampleFinishedBoard()
-      #board = Board.getExampleBoard()
-      #board = BoardGenerator.defineInitialBoardState(board)
-      if board is None:
-        self.gui.notifyStatus("Failed to load a random {}x{} board".format(rows, columns))
-        return
-      
-    # load in a specific board's info
-    else:
-      
-      # make sure the board exists
-      board = self.db.loadBoard(rows=rows, columns=columns, boardID=boardID)
-      if board is None:
-        self.gui.notifyStatus("No {}x{} board with ID {} exists".format(rows, columns, boardID))
-        return
+    
+  def _processLoadedBoard(self, board):
+    """ Remember and display a newly loaded board """
     
     # set the new row and column dimensions
-    self.board   = board
-    self.rows    = rows
-    self.columns = columns
-
-    # create a new board from this info
-    #self.board = Board.getExampleBoard()
+    self.board = board
+    self.rows, self.columns = board.getBoardDimensions()
     
     # update the gui
     self.gui.displayNewBoard(self.board)
@@ -199,6 +186,7 @@ class Controller(object):
     
     # start the boardTimer
     self.startTime = datetime.datetime.utcnow()
+  
   
   def run(self):
     self.gui.run()
@@ -246,30 +234,111 @@ class Controller(object):
     # disable editing
     self.editingEnabled = False
     
-    # update and store the board stats
+    # calulate the solve time
+    if self.startTime is None:
+      raise SystemError("Board was never started")
     solveTime = (datetime.datetime.utcnow() - self.startTime).total_seconds()
-    self.board.updateStats(newSolveTime = solveTime)
+
+    # update and store the board stats
+    self.board.updateSolveStats(solveTime)
     self.db.updateBoardStats(self.board)
     
     # display finished message
     self.gui.boardComplete()
   
-
   
-  def loadRandomBoard(self):
-    """ Return a random board from the database """
+  def deleteBoard(self):
+    """ Delete the current board from the database """
+    
+    # if the user confirms this is okay
+    if self.gui.confirmAction("Are you sure you want to delete this board?"):
+      
+      # remove the board from the database and clear it
+      self.db.removeBoard(*self.board.getBoardDimensions(), self.board.getID())
+      self.clearBoard()
+      
+      # tell the GUI we've updated our board numbers
+      self.gui.addedNewBoards()
 
-
+  def loadBoard(self, boardID):
+    """
+    # For the given dimensions, load in a board with the specifc ID
+    #
+    """
+    
+    rows    = self.rows
+    columns = self.columns
+    
+    # check we have boards
+    if self.getNumberOfBoards(rows, columns) == 0:
+      self.gui.notifyStatus("No {}x{} boards in the database".format(rows, columns))
+      return
+  
+    # load in a specific board's info
+    board = self.db.loadBoard(rows=rows, columns=columns, boardID=boardID)
+    if board is None:
+      self.gui.notifyStatus("No {}x{} board with ID {} exists".format(rows, columns, boardID))
+      return
+  
+    self._processLoadedBoard(board)
+    
+  
+  def loadUnsolvedBoard(self):
+    """ Return a random, unsolved board from the database """
+    
     rows    = self.rows
     columns = self.columns
 
-    self.loadBoard(rows, columns)
-    return
-    
+    # check we have boards
     if self.getNumberOfBoards(rows, columns) == 0:
       self.gui.notifyStatus("No {}x{} boards in the database".format(rows, columns))
+      return
+
+    # get the ID of the current board and exclude it from the load
+    if self.board:
+      currentBoardID = self.board.getID()
     else:
-      self.loadBoard(rows, columns)
+      currentBoardID = None
+
+    # load in an unsolved board
+    board = self.db.loadUnsolvedBoard(rows=rows, columns=columns, excludeID=currentBoardID)
+    if board is None:
+      self.gui.notifyStatus("Failed to load an unsolved {}x{} board".format(rows, columns))
+      return
+
+    # use and display this board
+    self._processLoadedBoard(board)
+  
+  
+  def loadRandomBoard(self):
+    """ Return a random board from the database """
+    
+    rows    = self.rows
+    columns = self.columns
+    
+    # check we have boards
+    if self.getNumberOfBoards(rows, columns) == 0:
+      self.gui.notifyStatus("No {}x{} boards in the database".format(rows, columns))
+      return
+    
+    # get the ID of the current board and exclude it from the load
+    if self.board:
+      currentBoardID = self.board.getID()
+    else:
+      currentBoardID = None
+    
+    # load in a random board
+    board = self.db.loadRandomBoard(rows=rows, columns=columns, excludeID=currentBoardID)
+    # board = Board.getExampleFinishedBoard()
+    # board = Board.getExampleBoard()
+    # board = BoardGenerator.defineInitialBoardState(board)
+    if board is None:
+      self.gui.notifyStatus("Failed to load a random {}x{} board".format(rows, columns))
+      return
+    
+    # use and display this board
+    self._processLoadedBoard(board)
+  
   
   def canEditBoard(self):
     """ Can the user edit the board """
@@ -351,7 +420,7 @@ class Controller(object):
           self.stopGeneration = False
           self.boardGenerationStatus = "Board generation halted"
           return
-  
+    
     # done
     self.boardGenerationStatus = "Generation Complete"
     self.boardGenerationProgress = 1.0
@@ -386,14 +455,18 @@ class Controller(object):
   def clearBoard(self):
     """ Clear the board and reset all board-specific information"""
     
-    self.board = None
+    self.board = Board(rows=self.rows, columns=self.columns)
     
     # tell the gui to clear the board
-    self.gui.clearBoard()
-  
+    if self.gui:
+      self.gui.clearBoard()
+    
   
   def resetBoard(self):
     """ Reset the board state back to its initial values """
+    
+    #self.boardComplete()
+    #return
     
     # reset the board
     self.board.resetBoard()

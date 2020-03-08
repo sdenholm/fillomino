@@ -1,4 +1,7 @@
 import logging
+import random
+import threading
+
 logger = logging.getLogger(__name__)
 
 import copy
@@ -59,7 +62,7 @@ class CellList(object):
     """ Return a randomly chosen cell """
     
     allCells   = (list(iter(self)))
-    cellChoice = np.random.randint(0, len(allCells))
+    cellChoice = random.randint(0, len(allCells)-1)
     return allCells[cellChoice]
     
   def __deepcopy__(self, memodict={}):
@@ -97,9 +100,13 @@ class CellList(object):
     for row,col in iter(self):
       op += "({},{}), ".format(row, col)
     return op[:-2] + "]"
-  
-  
+
+
+
+
 class BoardGenerator(object):
+  
+  threadLock = threading.RLock()
   
   # max times to try creating a new random group within a blank region
   MAX_GROUP_CREATION_ATTEMPTS = 200
@@ -164,7 +171,7 @@ class BoardGenerator(object):
     #  -4-point match in the middle of the board
     #
     """
-    
+
     # get the board dimensions
     rows, columns = board.getBoardDimensions()
     
@@ -196,6 +203,9 @@ class BoardGenerator(object):
     
     self.rows = rows
     self.columns = columns
+    
+    
+  
   
   
   @staticmethod
@@ -203,7 +213,9 @@ class BoardGenerator(object):
     """
     # Create a new, random-sized group in the cells given
     """
-
+    board = copy.deepcopy(board)
+    cellList = copy.deepcopy(cellList)
+    
     regionSize = len(cellList)
     
     #groups = list(range(2,10))
@@ -215,8 +227,8 @@ class BoardGenerator(object):
       localCellList = copy.deepcopy(cellList)
       
       # pick a random group size
-      groupSize = np.random.randint(2, min(regionSize, 9))
-      #groupSize = np.random.choice(groups, p=groupWeights)
+      groupSize = random.randint(2, min(regionSize, 9)-1)
+      #groupSize = random.choice(groups, p=groupWeights)
       
       # pick a random cell to start from
       row, column = localCellList.randomCell()
@@ -252,7 +264,7 @@ class BoardGenerator(object):
     #  -X is randomly chosen (for each attempt)
     #  -make sure board is still valid
     #    -if not, re-do meandering group
-    # groupSize = np.random.randint(2, min(regionLen, 9))
+    # groupSize = random.randint(2, min(regionLen, 9))
     #bd, newCells = BoardGenerator.insertNewRandomGroup(bd, blankCellList)
   
   @staticmethod
@@ -262,6 +274,9 @@ class BoardGenerator(object):
     #  -option to skip updating the group information if we don't care about that
     #
     """
+    board = copy.deepcopy(board)
+    cellList = copy.deepcopy(cellList)
+
     for row,col in cellList:
       board.updateCell(row, col, number, updateGroups=updateGroups)
     return board
@@ -269,7 +284,8 @@ class BoardGenerator(object):
   @staticmethod
   def addInitialOnes(board, numOnes):
     """ Add in 1's at random places of the board, making sure they're all valid """
-    
+    board = copy.deepcopy(board)
+
     # locations of cells we've added
     usedCells = CellList()
     
@@ -280,8 +296,8 @@ class BoardGenerator(object):
       
       # loop until we add a "1" to a valid location on the board
       while True:
-        row = np.random.randint(0, rows)
-        col = np.random.randint(0, columns)
+        row = random.randint(0, rows-1)
+        col = random.randint(0, columns-1)
         
         # make sure we haven't randomly selected this location before
         if (row, col) in usedCells:
@@ -353,6 +369,9 @@ class BoardGenerator(object):
     #
     """
     
+    #freeCells = copy.deepcopy(freeCells)
+    #visitedCells = copy.deepcopy(visitedCells)
+    
     if visitedCells is None:
       visitedCells = CellList()
     
@@ -365,7 +384,7 @@ class BoardGenerator(object):
     
     # try walking N, S, E, W
     directions = [(row, column+1), (row, column-1), (row+1, column), (row-1, column)]
-    np.random.shuffle(directions)
+    random.shuffle(directions)
     for newRow, newColumn in directions:
   
       # next cell location is valid if it:
@@ -395,6 +414,9 @@ class BoardGenerator(object):
     #
     """
     #logger.debug("populating regions")
+    
+    board = copy.deepcopy(board)
+    freeCells = copy.deepcopy(freeCells)
     
     # list of cell groups that couldn't be filled in the random group-adding
     #  -will be of size 9 or smaller
@@ -461,7 +483,7 @@ class BoardGenerator(object):
     # add in some random 1's
     numOnesLowerBound = int(np.ceil(self.rows * self.columns * 0.15))
     numOnesUpperBound = int(np.ceil(self.rows * self.columns * 0.20))
-    numOnes = np.random.randint(numOnesLowerBound, numOnesUpperBound)
+    numOnes = random.randint(numOnesLowerBound, numOnesUpperBound-1)
     bd, usedCells = BoardGenerator.addInitialOnes(bd, numOnes)
     #logger.debug("{} one-cells".format(numOnes))
     
@@ -510,6 +532,7 @@ class BoardGenerator(object):
     # create the initial state of the board
     bd = BoardGenerator.defineInitialBoardState(bd)
     
+    #print(bd.getBoardStats("id"), "\n", bd.getFinalValues(), id(bd), "\n=============")
     return bd
   
   
@@ -522,6 +545,8 @@ class BoardGenerator(object):
     #
     """
     #logger.debug("lone cells: {}".format(cellList))
+    board = copy.deepcopy(board)
+    cellList = copy.deepcopy(cellList)
     
     # dimensions of grid
     maxRows, maxColumns = board.getBoardDimensions()
@@ -597,6 +622,8 @@ class BoardGenerator(object):
     # the changes if it isn't
     #  -returns the board and whether the assignment was successful
     """
+
+    board = copy.deepcopy(board)
     
     # assign the cells
     board = BoardGenerator.assignNumber(board, regionSize, cellList, updateGroups=False)
@@ -617,14 +644,20 @@ class BoardGenerator(object):
   def _findIndicesToRemove(groupNum, probToKeep):
     
     # total number to key (at least 1)
-    numToKeep = max(1, int(np.sum(np.random.binomial(1, probToKeep, groupNum))))
-    #print(groupNum, "-", numToKeep)
-    
-    # randomly choose <total-numToKeep> cells to remove
-    return np.random.choice(list(range(groupNum)), groupNum - numToKeep, replace=False)
+    with BoardGenerator.threadLock:
+      seed = abs(np.int32(threading.get_ident() + datetime.datetime.utcnow().timestamp()))
+      np.random.seed(seed)
+      numToKeep = max(1, int(np.sum(np.random.binomial(1, probToKeep, groupNum))))
+      
+      # randomly choose <total-numToKeep> cells to remove
+      return np.random.choice(list(range(groupNum)), groupNum - numToKeep, replace=False)
 
   @staticmethod
   def _removeSparseAreas(rows, columns, cellList):
+    
+    #return cellList
+    
+    cellList = copy.deepcopy(cellList)
     
     # turn the empty cells into a rows x columns matrix
     boardVals = np.zeros((rows, columns))
@@ -632,29 +665,29 @@ class BoardGenerator(object):
       boardVals.itemset(*cell, 1)
     
     # convolution filter looking for areas that will create an empty grid
-    emptyRow = int(np.floor(rows/10)) + 1
-    emptyCol = int(np.floor(columns/10)) + 1
+    emptyRow = 3# int(np.floor(rows/10)) + 1
+    emptyCol = 3# int(np.floor(columns/10)) + 1
     emptyGrid = np.ones((emptyRow, emptyCol))
-    print(emptyGrid)
-    print("++++++++++")
+    #print(emptyGrid)
+    #print("++++++++++")
 
     # find emptiness
     matches = signal.convolve2d(boardVals, emptyGrid, mode="same")
     
-    print("matches", emptyGrid.size-1)
-    print(matches >= emptyGrid.size-1)
-    print("--------")
-    print(matches)
-    print("--------")
-    print(boardVals)
-    print("--------")
+    #print("matches", emptyGrid.size-1)
+    #print(matches >= emptyGrid.size-1)
+    #print("--------")
+    #print(matches)
+    #print("--------")
+    #print(boardVals)
+    #print("--------")
     
     # remove the gaps in the matrix
     for row, col in list(zip(*np.where(matches >= emptyGrid.size-1))):
       boardVals.itemset(row, col, 0)
-    print(boardVals)
+    #print(boardVals)
 
-    print("=============================")
+    #print("=============================")
     
     # turn the matrix back into a cell list
     newCellList = CellList()
@@ -750,6 +783,8 @@ class BoardGenerator(object):
     #  -returns the board and a list of cells we have filled (if any)
     #
     """
+    board = copy.deepcopy(board)
+    cellList = copy.deepcopy(cellList)
 
     regionSize = len(cellList)
     

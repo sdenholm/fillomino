@@ -26,6 +26,10 @@ class GUI(object):
     """ Called when board is completed """
     raise NotImplementedError("subclass must implement")
   
+  def confirmAction(self, text):
+    """ Ask the user to confirm they want to do <the thing> """
+    raise NotImplementedError("subclass must implement")
+  
   def displayNewBoard(self, board):
     """ Register the new board and display it """
     raise NotImplementedError("subclass must implement")
@@ -54,8 +58,18 @@ class PyQtGUI(GUI, QtCore.QObject):
     """ Allows us to call GUI functions from other threads """
     func()
   
+  def confirmAction(self, text):
+    """ Ask the user to confirm they want to do <the thing> """
+    response = QtWidgets.QMessageBox.question(self.mainWindow, "Fillomino",
+                                 text, QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No, QtWidgets.QMessageBox.No)
+    return response == QtWidgets.QMessageBox.Yes
+  
   def notifyStatus(self, text):
-    pass
+    """ Status notification; used or ignored, up to the GUI """
+    QtWidgets.QMessageBox.information(self.mainWindow, "Fillomino",
+                                 text, QtWidgets.QMessageBox.Ok)
+    
+    #self.appCreator.setStatusText(text)
 
   #CELL_STYLE_NORMAL      = "border-style: outset; border-width: 1px; border-color: black; background: white;"
   #CELL_STYLE_HIGHLIGHTED = "border-style: outset; border-width: 1px; border-color: yellow; background: yellow;"
@@ -406,7 +420,9 @@ class PyQtGUI(GUI, QtCore.QObject):
       
       # function to call for each menu option
       actionMap = {
-        "Load Random Board":  gui.controller.loadRandomBoard,
+        "Load Random Board":   gui.controller.loadRandomBoard,
+        "Load Unsolved Board": gui.controller.loadUnsolvedBoard,
+        "Delete this Board":   gui.controller.deleteBoard,
         "Quit": sys.exit
       }
   
@@ -533,7 +549,13 @@ class PyQtGUI(GUI, QtCore.QObject):
       self.mainLayout.insertLayout(2, controls, 1)
       
       # set window size
-      self.mainWindow.resize(35 * rows, 35 * columns)
+      #  -need to wait for a bit for all past elements to be removed
+      def fn():
+        time.sleep(0.1)
+        self.gui.funcCall.emit(lambda: self.gui.mainWindow.setWindowState(QtCore.Qt.WindowNoState))
+        self.gui.funcCall.emit(lambda: self.gui.mainWindow.resize(35 * rows, 35 * columns))
+      threading.Thread(target=fn).start()
+    
     
     def updateMenuBar(self):
       """ If our board info has changed, update the menu bar items """
@@ -563,7 +585,9 @@ class PyQtGUI(GUI, QtCore.QObject):
       ###########################################################################
     
       fileMenu = menubar.addMenu("File")
-      fileMenu.addAction("Load Random Board", lambda: PyQtGUI.UserActions.menuFile(self.gui))
+      fileMenu.addAction("Load Random Board",   lambda: PyQtGUI.UserActions.menuFile(self.gui))
+      fileMenu.addAction("Load Unsolved Board", lambda: PyQtGUI.UserActions.menuFile(self.gui))
+      fileMenu.addAction("Delete this Board",   lambda: PyQtGUI.UserActions.menuFile(self.gui))
       fileMenu.addSeparator()
       fileMenu.addAction("Quit", lambda: PyQtGUI.UserActions.menuFile(self.gui))
     
@@ -762,7 +786,7 @@ class PyQtGUI(GUI, QtCore.QObject):
     self._getGameGrid   = self.appCreator.getGameGrid
     self._setStatusText = self.appCreator.setStatusText
 
-    self.notifyStatus = self.appCreator.setStatusText
+    #self.notifyStatus = self.appCreator.setStatusText
     
     ###########################################################################
     
@@ -897,8 +921,18 @@ class PyQtGUI(GUI, QtCore.QObject):
   def boardComplete(self):
     """ Board is complete """
     
+    count, mean, stdDev = self.board.getSolveStats()
+    
+    # round
+    mean   = round(mean, 2)
+    stdDev = round(stdDev, 2)
+    
     # display finished message
-    self._setStatusText("BOARD COMPLETE!")
+    msg  = "Board Complete!\n\n"
+    msg += "Solved:\t{} times\n".format(count)
+    msg += "Your time:\t{}s\n".format(self.board.getSolveTime())
+    msg += "Av. time:\t{}s (±{}s)\n".format(mean, stdDev)
+    self.notifyStatus(msg)
     
   
   
@@ -921,7 +955,7 @@ class PyQtGUI(GUI, QtCore.QObject):
       #self._setupAppLayout(rows, columns)
     
     # clear any past boards
-    self.clearBoard()#
+    self.clearBoard()
     
     # set the value for each initial cell
     for row in range(rows):
@@ -935,7 +969,8 @@ class PyQtGUI(GUI, QtCore.QObject):
     self._highlightGroups()
 
     # set the board title
-    self.setBoardTitle(board.getBoardStats("creation_date"))
+    self.setBoardTitle(board.getID())
+    
     
   def setBoardTitle(self, title):
     """ Set the title of the board """

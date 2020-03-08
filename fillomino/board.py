@@ -118,13 +118,15 @@ class Board(object):
     # -stats:         (dictionary)
     #
     """
-    
+    #print("ID: ", kwargs.get("id"))
+    #print(initialValues)
     # if no initial values given then set to 0s (all blank)
     if initialValues is None:
       initialValues = np.zeros((rows, columns), np.int8)
     
     # stats stuff
     self.boardStats = copy.deepcopy(kwargs)
+    self.solveTime  = None
     
     self.rows    = rows
     self.columns = columns
@@ -150,10 +152,11 @@ class Board(object):
     newBoard = Board(rows          = self.rows,
                      columns       = self.columns,
                      initialValues = self.initialValues,
-                     finalValues   = self.finalValues)
+                     finalValues   = self.finalValues,
+                     *self.getBoardStats())
     
     # copy the stats
-    newBoard.setBoardStats(**self.stats)
+    #newBoard.setBoardStats(**self.stats)
     
     # copy the current values
     newBoard.values = self.values.copy()
@@ -173,10 +176,10 @@ class Board(object):
   def getInitialValues(self):     return self.initialValues
   def getInvalidGroups(self):     return self.invalidGroups
   def getOrphanGroups(self):      return self.orphanGroups
+  def getSolveTime(self):         return self.solveTime
   def getValues(self):            return self.values
   def getValidGroups(self):       return self.validGroups
   
-
   
   def getBoardStats(self, statName=None):
     if statName is None:
@@ -184,13 +187,16 @@ class Board(object):
     else:
       return self.boardStats.get(statName, None)
   
+  
   def setBoardStats(self, **kwargs):
-    self.stats.update(kwargs)
+    self.boardStats.update(kwargs)
+  
   
   def isInitialCell(self, row, column):
     """ Was this cell initialised with a value """
     return self.initialValues.item(row, column) != 0
-
+  
+  
   def isBoardComplete(self):
     """ Is the board complete """
   
@@ -199,32 +205,75 @@ class Board(object):
     numInvalid = np.sum([len(v) for _, v in self.getInvalidGroups().items()])
     return numOrphans == numInvalid == 0
   
+  
   def isBoardValid(self):
     """ Does the board have no invalid groups """
     numInvalid = np.sum([len(v) for _, v in self.getInvalidGroups().items()])
     return numInvalid == 0
   
-  def updateStats(self, newSolveTime):
-    
-    boardStats = self.getBoardStats()
+  
+  def updateSolveStats(self, solveTime):
+    """ Update the board stats given a new solve time """
 
+    # round down and store the new solve time
+    solveTime = round(solveTime, 2)
+    self.solveTime = solveTime
+    
+    # get the current board stats
+    boardStats = self.getBoardStats()
+    currFast   = boardStats["solve_fastest"]
+    currSlow   = boardStats["solve_slowest"]
     currMean   = boardStats["solve_mean"]
     currVarPop = boardStats["solve_var_pop"]
     currCount  = boardStats["solve_count"]
-
+    
+    # initialise if needed
+    if currFast is None:   currFast = solveTime
+    if currSlow is None:   currSlow = solveTime
+    if currMean is None:   currMean = 0
+    if currVarPop is None: currVarPop = 0
+    if currCount is None:  currCount = 0
+    
+    # update fastest and slowest
+    fast = float(min(currFast, solveTime))
+    slow = float(max(currSlow, solveTime))
+    
     # update count
     count = currCount + 1
 
     # update mean
-    mean = currMean + ((newSolveTime - currMean) / count)
+    mean = currMean + ((solveTime - currMean) / count)
 
     # update varPop and calculate std Dev
-    varPop = currVarPop + (newSolveTime - currMean) * (newSolveTime - mean)
-    stdDev = np.sqrt(varPop / count)
+    varPop = currVarPop + (solveTime - currMean) * (solveTime - mean)
+    #stdDev = np.sqrt(varPop / count)
     
-    ## FINISH ME!!!!!!!!!!!!!!!!
+    # store the new stats
+    self.setBoardStats(**{
+      "solve_fastest": fast,
+      "solve_slowest": slow,
+      "solve_mean":    mean,
+      "solve_var_pop": varPop,
+      "solve_count":   count
+    })
     
   
+  def getSolveStats(self):
+    """
+    # Return the current board solve stats
+    #  -returns count. mean, std dev
+    #
+    """
+  
+    # get the current board stats
+    boardStats = self.getBoardStats()
+    
+    # calculate and return values
+    count  = boardStats["solve_count"]
+    mean   = boardStats["solve_mean"]
+    stdDev = np.sqrt(boardStats["solve_var_pop"] / count)
+    return count, mean, stdDev
+    
   def resetBoard(self):
     """ Resets the board to its initial values """
     
