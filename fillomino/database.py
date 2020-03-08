@@ -1,4 +1,4 @@
-
+import copy
 import logging
 logger = logging.getLogger(__name__)
 
@@ -9,7 +9,7 @@ import sqlite3
 from fillomino.board import Board
 
 
-class DatabaseSetup(object):
+class DatabaseInfo(object):
   
   @staticmethod
   def createDatabase(fileLocation):
@@ -23,40 +23,53 @@ class DatabaseSetup(object):
     db.connect()
     
     # create the tables
-    for rows, columns in [(10, 10), (15,15), (20,20)]:
-      tableDefinition = DatabaseSetup.getBoardTableDefinition(rows, columns)
+    for rows, columns in [(10, 10), (15, 15), (20, 20)]:
+      tableDefinition = DatabaseInfo.getBoardTableDefinition(rows, columns)
       db._executeCommand(tableDefinition)
     
     # close the database connection
     db.close()
   
   @staticmethod
+  def getTableColumns(tableName):
+    """ Return the columns for the given table"""
+    
+    if tableName.startswith("boards"):
+      return ["id", "initial_board", "final_board", "creation_date",
+              "solve_fastest", "solve_slowest", "solve_mean",
+              "solve_var_pop", "solve_count", "stats"]
+    
+    else:
+      raise SystemError("Unknown table: {}".format(tableName))
+      
+  
+  @staticmethod
   def getBoardTableDefinition(rows, columns):
     """ SQL table definition for a board table """
     
-    # id:             unique ID for this board
-    # initial_board:  layout for unsolved board
-    # final_board:    layout for solved board
-    # creation_date:  date board was created
-    # shortest_solve: shortest solve time
-    # longest_solve:  longest solve time
-    # mean_solve:     average solve time
-    # std_solve:      standard deviation of average solve time
-    # solve_count:    number of times board was solved
-    # stats:          miscellaneous board stats
+    # id:            unique ID for this board
+    # initial_board: layout for unsolved board
+    # final_board:   layout for solved board
+    # creation_date: date board was created
+    # solve_fastest: fastest solve time (seconds)
+    # solve_slowest: slowest solve time (seconds)
+    # solve_mean:    average solve time (seconds)
+    # solve_var_pop: value to calculate standard deviation of average solve time
+    # solve_count:   number of times board was solved
+    # stats:         miscellaneous board stats
     #
     definition = """
       create table IF NOT EXISTS boards{}x{}(
-        id             INT UNSIGNED,
-        initial_board  JSON,
-        final_board    JSON,
-        creation_date  DATETIME,
-        shortest_solve INT UNSIGNED DEFAULT NULL,
-        longest_solve  INT UNSIGNED DEFAULT NULL,
-        mean_solve     FLOAT UNSIGNED DEFAULT NULL,
-        std_solve      FLOAT UNSIGNED DEFAULT NULL,
-        solve_count    INT UNSIGNED DEFAULT 0,
-        stats          JSON,
+        id            BIG INT UNSIGNED,
+        initial_board JSON,
+        final_board   JSON,
+        creation_date DATETIME,
+        solve_fastest INT UNSIGNED DEFAULT NULL,
+        solve_slowest INT UNSIGNED DEFAULT NULL,
+        solve_mean    FLOAT UNSIGNED DEFAULT NULL,
+        solve_var_pop FLOAT UNSIGNED DEFAULT NULL,
+        solve_count   INT UNSIGNED DEFAULT 0,
+        stats         JSON,
         PRIMARY KEY (id)
       );
     """.format(rows, columns)
@@ -94,58 +107,64 @@ class Database(object):
     self.conn.close()
   
   @Decorators.openAndClose
-  def _executeCommand(self, cmd):
+  def _executeCommand(self, cmd, data=None):
     #print(cmd)
-    self.cursor.execute(cmd)
+    if data:
+      self.cursor.execute(cmd, data)
+    else:
+      self.cursor.execute(cmd)
     self.conn.commit()
 
     return self.cursor.fetchall()
+  
+  @staticmethod
+  def _processLoadedBoard(rows, columns, execData, columnNames):
+    """ Convet the data returned from the database into a board """
     
-    
+    # if no board was returned
+    if len(execData) != 1:
+      return None
+
+    # zip together the names and values of the data
+    boardDict = dict(zip(columnNames, execData[0]))
+
+    # convert the json data
+    for jsonKey in ["initial_board", "final_board", "stats"]:
+      boardDict[jsonKey] = json.loads(boardDict[jsonKey])
+
+    # create and return the board
+    return Board.createBoard(rows, columns, **boardDict)
+  
+
   def loadRandomBoard(self, rows, columns):
     """ Retrieve a random <rows> x <columns> board from the database and return it """
     
     # columns to load
-    columnNames = ["id", "initial_board", "final_board", "creation_date",
-                   "shortest_solve", "longest_solve", "mean_solve",
-                   "std_solve", "solve_count", "stats"]
+    tableName   = "boards{}x{}".format(rows, columns)
+    columnNames = DatabaseInfo.getTableColumns(tableName)
     
-    cmd  = """SELECT * FROM boards{}x{} ORDER BY RANDOM() LIMIT 1""".format(rows, columns)
+    cmd  = """SELECT * FROM {} ORDER BY RANDOM() LIMIT 1""".format(tableName)
     ret = self._executeCommand(cmd)
     
-    if len(ret) != 1:
-      return None
-      #raise SystemError("No boards in the {}x{} table".format(rows, columns))
-    
     # create and return the board
-    boardDict = dict(zip(columnNames, ret[0]))
-    for jsonKey in ["initial_board", "final_board", "stats"]:
-      boardDict[jsonKey] = json.loads(boardDict[jsonKey])
-    return Board.createBoard(rows, columns, **boardDict)
+    return Database._processLoadedBoard(rows, columns, ret, columnNames)
     
   
   def loadBoard(self, rows, columns, boardID):
     """ Load a board from the <rows> x <columns> table with the given ID """
 
     # columns to load
-    columnNames = ["id", "initial_board", "final_board", "creation_date",
-                   "shortest_solve", "longest_solve", "mean_solve",
-                   "std_solve", "solve_count", "stats"]
+    tableName   = "boards{}x{}".format(rows, columns)
+    columnNames = DatabaseInfo.getTableColumns(tableName)
     
     # get the board
-    cmd = """SELECT * FROM boards{}x{} WHERE id = {};""".format(rows, columns, boardID)
+    cmd = """SELECT * FROM {} WHERE id = {};""".format(tableName, boardID)
     ret = self._executeCommand(cmd)
+
+    # create and return the board
+    return Database._processLoadedBoard(rows, columns, ret, columnNames)
     
-    # return the board if it exists
-    if len(ret) != 1:
-      return None
-    else:
-      boardDict = dict(zip(columnNames, ret[0]))
-      for jsonKey in ["initial_board", "final_board", "stats"]:
-        boardDict[jsonKey] = json.loads(boardDict[jsonKey])
-      return Board.createBoard(rows, columns, **boardDict)
-  
-  
+    
   def storeBoard(self, rows, columns, boardID, initialBoard, finalBoard, creationDate, stats):
     """ Store a board in the <rows> x <columns> table """
     
@@ -160,8 +179,6 @@ class Database(object):
     if len(ret) != 0:
       raise SystemError("Board with id {} already exists".format(boardID))
     
-    
-    
     # insert the new board
     cmd  = """INSERT INTO boards{}x{}(id, initial_board, final_board, creation_date, stats) """ \
           .format(rows, columns)
@@ -174,7 +191,53 @@ class Database(object):
     self._executeCommand(cmd)
     
     return self.cursor.lastrowid
+  
+  
+  def updateBoardStats(self, board):
+    """ Update the stats of the given board """
+    
+    # get the board stats
+    boardStats = copy.deepcopy(board.getBoardStats())
+    
+    # remove stats we don't want
+    for removeKey in ["id"]:
+      del boardStats[removeKey]
+    
+    # convert the json types
+    for jsonKey in ["stats"]:
+      boardStats[jsonKey] = json.dumps(boardStats[jsonKey])
+    
+    tableName = "boards{}x{}".format(*board.getBoardDimensions())
+    
+    ## construct the update command
+    #cmd  = """ UPDATE {} SET """.format(tableName)
+    #for k,v in boardStats.items():
+    #  if isinstance(v, int):   cmd += """ {} = {} """.format(k,v)
+    #  elif isinstance(v, str): cmd += """ {} = `{}` """.format(k,v)
+    #  else:
+    #    raise TypeError("Unknown type for key {}: {}".format(k, type(v)))
+    #cmd += """ WHERE id = {} """.format(board.getID())
+    
+    cmd  = """ UPDATE {} SET """.format(tableName)
+    for k in boardStats.keys():
+      cmd += """ {} = ? """.format(k)
+    cmd += """ WHERE id = {} """.format(board.getID())
 
+    # execute and return
+    self._executeCommand(cmd, data=list(boardStats.values()))
+    """
+    sql = ''' UPDATE tasks
+              SET priority = ? ,
+                  begin_date = ? ,
+                  end_date = ?
+              WHERE id = ?'''
+    cur = conn.cursor()
+    cur.execute(sql, task)
+    """
+    
+    # execute and return
+    #return self._executeCommand(cmd)
+  
   def getBoardsInfo(self):
     """
     # Get general information on all of the board types in the database
@@ -216,7 +279,7 @@ class Database(object):
     """ Create a board table if it doesn't alread exist """
     
     if self.getBoardsInfo().get((rows, columns), None) is None:
-      tableDefinition = DatabaseSetup.getBoardTableDefinition(rows, columns)
+      tableDefinition = DatabaseInfo.getBoardTableDefinition(rows, columns)
       self._executeCommand(tableDefinition)
 
   def _getTableLength(self, tableName):

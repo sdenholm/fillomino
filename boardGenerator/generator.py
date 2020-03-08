@@ -394,7 +394,7 @@ class BoardGenerator(object):
     # cells.
     #
     """
-    logger.debug("populating regions")
+    #logger.debug("populating regions")
     
     # list of cell groups that couldn't be filled in the random group-adding
     #  -will be of size 9 or smaller
@@ -463,7 +463,7 @@ class BoardGenerator(object):
     numOnesUpperBound = int(np.ceil(self.rows * self.columns * 0.20))
     numOnes = np.random.randint(numOnesLowerBound, numOnesUpperBound)
     bd, usedCells = BoardGenerator.addInitialOnes(bd, numOnes)
-    logger.debug("{} one-cells".format(numOnes))
+    #logger.debug("{} one-cells".format(numOnes))
     
     # list of all available cells
     freeCells = CellList.filledList(self.rows, self.columns)
@@ -479,7 +479,7 @@ class BoardGenerator(object):
     
     # if we have lone groups of cells that we couldn't fill, try to
     # merge them into their neighbour's groups
-    logger.debug("{} lone cell groups".format(len(loneGroupList)))
+    #logger.debug("{} lone cell groups".format(len(loneGroupList)))
     for iCell, loneGroup in enumerate(loneGroupList):
       
       # try to add the cell to the (N,S,W,E)
@@ -493,12 +493,12 @@ class BoardGenerator(object):
         errMsg += "Time taken: {}\n".format(timeTaken)
         errMsg += "Lone cells remaining: {}\n".format(cellsRemaining)
         errMsg += "Board:\n{}".format(bd.getValues())
-        logger.debug("GenerationFailedError: {}".format(errMsg))
+        #logger.debug("GenerationFailedError: {}".format(errMsg))
         raise GenerationFailedError(errMsg)
     
     # calculate the time taken
-    timeTaken = datetime.datetime.utcnow() - startTime
-    logger.debug("Board done. Time taken: {}".format(timeTaken))
+    #timeTaken = datetime.datetime.utcnow() - startTime
+    #logger.debug("Board done. Time taken: {}".format(timeTaken))
     
     # final board update and checks
     bd.updateGroups()
@@ -521,7 +521,7 @@ class BoardGenerator(object):
     #
     #
     """
-    logger.debug("lone cells: {}".format(cellList))
+    #logger.debug("lone cells: {}".format(cellList))
     
     # dimensions of grid
     maxRows, maxColumns = board.getBoardDimensions()
@@ -557,14 +557,14 @@ class BoardGenerator(object):
               break
           
     
-    logger.debug("neighbours:")
-    for neigh in neighbourGroups:
-      logger.debug("{} - {}".format(len(neigh), neigh))
+    #logger.debug("neighbours:")
+    #for neigh in neighbourGroups:
+    #  logger.debug("{} - {}".format(len(neigh), neigh))
     
     # if none of the neighbours are the same size as this group, just fill
     # in this group
     if len(cellList) not in [len(group) for group in neighbourGroups]:
-      logger.debug("filling in group")
+      #logger.debug("filling in group")
       board, success = BoardGenerator._tryAssignment(board, len(cellList), cellList)
       return board
     
@@ -587,7 +587,7 @@ class BoardGenerator(object):
       
     # no luck merging
     msg = "Could not merge lone cell group: {}".format(cellList)
-    logger.debug(msg)
+    #logger.debug(msg)
     raise GenerationFailedError(msg)
     
   @staticmethod
@@ -618,7 +618,7 @@ class BoardGenerator(object):
     
     # total number to key (at least 1)
     numToKeep = max(1, int(np.sum(np.random.binomial(1, probToKeep, groupNum))))
-    print(groupNum, "-", numToKeep)
+    #print(groupNum, "-", numToKeep)
     
     # randomly choose <total-numToKeep> cells to remove
     return np.random.choice(list(range(groupNum)), groupNum - numToKeep, replace=False)
@@ -673,6 +673,23 @@ class BoardGenerator(object):
     #
     # -board: (Board) where the current values are that of a valid, completed board
     """
+    
+    # -choose to keep X cells in a group
+    #  -decide on which cells to keep based on rules:
+    #   -all cells have to be at edge of group
+    #     -maybe "corner", i.e., most down-left in group
+    #   -if 2 more more cells in a group, all have to be touching
+    #     -OR in at least groups of 2or3
+    
+    """
+    #
+    # mean = lastMean + ((val - lastMean) / n)
+    #
+    # S = lastS + (val - lastMean) * (val - mean)
+    # stDev = sqrt(S/total)
+    #
+    """
+    
     
     # make sure the board is complete
     if not board.isBoardComplete():

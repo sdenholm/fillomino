@@ -13,7 +13,7 @@ from concurrent import futures
 
 from fillomino.board import Board
 from fillomino.display import PyQtGUI
-from fillomino.database import Database, DatabaseSetup
+from fillomino.database import Database, DatabaseInfo
 
 from boardGenerator.generator import BoardGenerator, GenerationFailedError
 
@@ -82,7 +82,7 @@ class Controller(object):
     # board database
     #  -if the database doesn't exist, create it
     if not os.path.exists(self.databaseLoc):
-      DatabaseSetup.createDatabase(self.databaseLoc)
+      DatabaseInfo.createDatabase(self.databaseLoc)
     self.db = Database(self.databaseLoc)
     
     # disable board editing
@@ -93,13 +93,47 @@ class Controller(object):
     self.boardGenerationStatus   = ""
     self.boardGenerationProgress = 0
     
+    # stats stuff
+    self.startTime = None
+    
     # create a blank board
     self.board = Board(rows=self.rows, columns=self.columns)
     
     # create a GUI
     self.gui = PyQtGUI(self, self.board)
     
+  def DEP_updateTimeStats(self, newValue):
+    """
+    #
+    # mean = lastMean + ((val - lastMean) / n)
+    #
+    # S = lastS + (val - lastMean) * (val - mean)
+    # stDev = sqrt(S/total)
+    #
+    """
     
+    timeStats  = self.db.getTimeStats(self.board)
+    currMean   = timeStats["mean"]
+    currVarPop = timeStats["varPop"]
+    currCount  = timeStats["count"]
+    
+    # update count
+    count = currCount + 1
+    
+    # update mean
+    mean = currMean + ((newValue - currMean) / count)
+    
+    # update varPop and calculate std Dev
+    varPop = currVarPop + (newValue - currMean) * (newValue - mean)
+    stdDev = np.sqrt(varPop/count)
+    
+    self.db.storeTimeStats(board  = self.board,
+                           mean   = mean,
+                           varPop = varPop,
+                           count  = count)
+    
+    return mean, varPop
+  
   def _updateConfig(self, **kwargs):
     """ Update the configuration data """
     Controller._updateConfigFile(self.configFileLoc, kwargs)
@@ -162,6 +196,9 @@ class Controller(object):
 
     # enable editing
     self.editingEnabled = True
+    
+    # start the boardTimer
+    self.startTime = datetime.datetime.utcnow()
   
   def run(self):
     self.gui.run()
@@ -208,7 +245,12 @@ class Controller(object):
 
     # disable editing
     self.editingEnabled = False
-
+    
+    # update and store the board stats
+    solveTime = (datetime.datetime.utcnow() - self.startTime).total_seconds()
+    self.board.updateStats(newSolveTime = solveTime)
+    self.db.updateBoardStats(self.board)
+    
     # display finished message
     self.gui.boardComplete()
   
@@ -325,7 +367,7 @@ class Controller(object):
     # ID is just the current timestamp
     created      = datetime.datetime.utcnow()
     boardID      = int(np.floor(created.timestamp()*1000000))
-    creationDate = str(created.replace(microseconds=0))
+    creationDate = str(created.replace(microsecond=0))
     
     # boards as lists
     initialBoardList = list(map(int, board.getInitialValues().flatten()))

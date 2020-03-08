@@ -3,7 +3,7 @@ import unittest
 
 import numpy as np
 
-from fillomino.database import Database, DatabaseSetup
+from fillomino.database import Database, DatabaseInfo
 
 class test_Database(unittest.TestCase):
   
@@ -22,7 +22,7 @@ class test_Database(unittest.TestCase):
       raise FileExistsError("test database {} already exists")
 
     # create a test database
-    DatabaseSetup.createDatabase(self.dbName)
+    DatabaseInfo.createDatabase(self.dbName)
     self.db = Database(self.dbName)
     self.db.connect()
   

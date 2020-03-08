@@ -1,4 +1,4 @@
-
+import copy
 import logging
 logger = logging.getLogger(__name__)
 
@@ -84,11 +84,13 @@ class Board(object):
   
   @staticmethod
   def createBoard(rows, columns, **kwargs):
-    """ Create a board using lists """
+    """ Create a board using the data from the database """
+
+    kwargs = copy.deepcopy(kwargs)
     
     # need initial and final board values
-    initialBoardList = kwargs.get("initial_board", None)
-    finalBoardList   = kwargs.get("final_board", None)
+    initialBoardList = kwargs.pop("initial_board", None)
+    finalBoardList   = kwargs.pop("final_board", None)
     if initialBoardList is None or finalBoardList is None:
       raise ValueError("Must supply both initial_values and final_values")
     
@@ -101,32 +103,15 @@ class Board(object):
         initialArr[row][column] = initialBoardList[row*rows + column]
         finalArr[row][column]   = finalBoardList[row*rows + column]
     
-    
-    # create the board
-    board = Board(rows=rows, columns=columns,
-                  initialValues=initialArr,
-                  finalValues=finalArr)
-    
-    # add stats
-    boardStats = kwargs.copy()
-    del boardStats["initial_board"]
-    del boardStats["final_board"]
-    board.setBoardStats(**boardStats)
-    
-    """
-    # set its values
-    for row in range(rows):
-      for column in range(columns):
-        board.values[row][column] = boardList[row*rows + column]
-    
-    # set this as the initial state
-    board.initialValues = board.values.copy()
-    """
-    
-    return board
+    # create and return the board
+    return Board(rows          = rows,
+                 columns       = columns,
+                 initialValues = initialArr,
+                 finalValues   = finalArr,
+                 **kwargs)
   
   
-  def __init__(self, rows, columns, initialValues=None, finalValues=None):
+  def __init__(self, rows, columns, initialValues=None, finalValues=None, **kwargs):
     """
     # -initialValues: (array)
     # -finalValues:   (array)
@@ -137,8 +122,9 @@ class Board(object):
     # if no initial values given then set to 0s (all blank)
     if initialValues is None:
       initialValues = np.zeros((rows, columns), np.int8)
-      
-    self.stats = {}
+    
+    # stats stuff
+    self.boardStats = copy.deepcopy(kwargs)
     
     self.rows    = rows
     self.columns = columns
@@ -180,17 +166,23 @@ class Board(object):
     return newBoard
   
 
-  def getBoardDimensions(self): return self.values.shape
+  def getBoardDimensions(self):   return self.values.shape
   def getCellValue(self,row,col): return self.values.item(row,col)
-  def getFinalValues(self): return self.finalValues
-  def getInitialValues(self): return self.initialValues
-  def getInvalidGroups(self): return self.invalidGroups
-  def getOrphanGroups(self):  return self.orphanGroups
-  def getValues(self):        return self.values
-  def getValidGroups(self):   return self.validGroups
+  def getFinalValues(self):       return self.finalValues
+  def getID(self):                return self.getBoardStats("id")
+  def getInitialValues(self):     return self.initialValues
+  def getInvalidGroups(self):     return self.invalidGroups
+  def getOrphanGroups(self):      return self.orphanGroups
+  def getValues(self):            return self.values
+  def getValidGroups(self):       return self.validGroups
   
-  def getBoardStats(self, statName):
-    return self.stats.get(statName, None)
+
+  
+  def getBoardStats(self, statName=None):
+    if statName is None:
+      return self.boardStats
+    else:
+      return self.boardStats.get(statName, None)
   
   def setBoardStats(self, **kwargs):
     self.stats.update(kwargs)
@@ -211,6 +203,27 @@ class Board(object):
     """ Does the board have no invalid groups """
     numInvalid = np.sum([len(v) for _, v in self.getInvalidGroups().items()])
     return numInvalid == 0
+  
+  def updateStats(self, newSolveTime):
+    
+    boardStats = self.getBoardStats()
+
+    currMean   = boardStats["solve_mean"]
+    currVarPop = boardStats["solve_var_pop"]
+    currCount  = boardStats["solve_count"]
+
+    # update count
+    count = currCount + 1
+
+    # update mean
+    mean = currMean + ((newSolveTime - currMean) / count)
+
+    # update varPop and calculate std Dev
+    varPop = currVarPop + (newSolveTime - currMean) * (newSolveTime - mean)
+    stdDev = np.sqrt(varPop / count)
+    
+    ## FINISH ME!!!!!!!!!!!!!!!!
+    
   
   def resetBoard(self):
     """ Resets the board to its initial values """
