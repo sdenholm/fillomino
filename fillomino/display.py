@@ -450,6 +450,7 @@ class PyQtGUI(GUI, QtCore.QObject):
       if action is None:
         rows, cols = map(int, name.split("\t")[0].split("x"))
         gui.controller.setBoardDimensions(rows, cols)
+        gui.sender().setChecked(True)
   
       # mapped to an action above
       else:
@@ -463,8 +464,8 @@ class PyQtGUI(GUI, QtCore.QObject):
   
       # function to call for each menu option
       actionMap = {
-        "How to Play": lambda: print("How to Play"),
-        "About":       lambda: print("About"),
+        "How to Play": gui.showHowToPlay,
+        "About":       gui.showAbout,
       }
   
       # call menu function
@@ -613,6 +614,7 @@ class PyQtGUI(GUI, QtCore.QObject):
           action = QtWidgets.QAction(optionText, self.mainWindow)
           action.triggered.connect(lambda: PyQtGUI.UserActions.menuBoard(self.gui))
           action.setCheckable(True)
+          
           fileMenu.addAction(action)
         
           # tick this option if it's our current board's dimensions
@@ -952,7 +954,6 @@ class PyQtGUI(GUI, QtCore.QObject):
     # the app layout to accommodate the new size
     if (rows, columns) != (oldRows, oldColumns ):
       self.appCreator.setlayout(rows, columns)
-      #self._setupAppLayout(rows, columns)
     
     # clear any past boards
     self.clearBoard()
@@ -974,7 +975,11 @@ class PyQtGUI(GUI, QtCore.QObject):
     
   def setBoardTitle(self, title):
     """ Set the title of the board """
-    self.mainWindow.setWindowTitle("Fillomino - {}".format(title))
+    if title is None or title == "":
+      self.mainWindow.setWindowTitle("Fillomino")
+    else:
+      self.mainWindow.setWindowTitle("Fillomino - {}".format(title))
+  
   
   def updateCell(self, x, y):
     """ Update a single cell and any highlighting that may have changed """
@@ -1012,7 +1017,7 @@ class PyQtGUI(GUI, QtCore.QObject):
   
     # highlight the new cell
     self._getGameGrid()[x][y].setStyleSheet(self.CELL_STYLE_HIGHLIGHTED)
-    self._setStatusText("{}x{}".format(x, y))
+    #self._setStatusText("{}x{}".format(x, y))
   
   
   def showBoardGeneratorWindow(self):
@@ -1030,3 +1035,19 @@ class PyQtGUI(GUI, QtCore.QObject):
     
     # revert status messages back to the main window
     self.notifyStatus = mainWindowStatusFn
+    
+  def showHowToPlay(self):
+    """ Display the dialog that discribes how to play """
+    msgBox = QtWidgets.QMessageBox(self.mainWindow)
+    msgBox.setWindowTitle("How to Play")
+    msgBox.setTextFormat(QtCore.Qt.RichText)
+    msgBox.setText(self.controller.howToPlayText("richtext"))
+    msgBox.exec()
+  
+  def showAbout(self):
+    """ Display the "about" dialog """
+    msgBox = QtWidgets.QMessageBox(self.mainWindow)
+    msgBox.setWindowTitle("About")
+    msgBox.setTextFormat(QtCore.Qt.RichText)
+    msgBox.setText(self.controller.aboutText("richtext"))
+    msgBox.exec()

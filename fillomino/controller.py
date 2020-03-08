@@ -61,6 +61,41 @@ class Controller(object):
     with open(configFileLoc, 'w') as f:
       yaml.safe_dump(configData, f)
   
+  @staticmethod
+  def aboutText(textType=None):
+    """ Text giving the game info """
+    
+    if textType == "richtext":
+      return """Fillomino<p>By Stewart Denholm<p><a href=https://github.com/sdenholm>GitHub</a>"""
+    
+    else:
+      return """Fillomino\nBy Stewart Denholm\nGitHub: github.com/sdenholm"""
+  
+  @staticmethod
+  def howToPlayText(textType=None):
+    """ Text describing how to play the game """
+    
+    msg = """
+<h3>How to Play</h3><p>
+1) Fill in the blanks using the digits 1-9 to create regions, called polyominoes.<p>
+2) A region must contain as many cells as its number value e.g., three number 3s together will
+make a region, or four number 4s together, five number 5s, etc.<p>
+3) Regions with the same number cannot touch. For example, two regions of four 4s cannot
+be neighbours.<p>
+4) When the board is filled, you win!<p><p>
+<h3>Generating Boards</h3><p>
+To play, you must first generate boards:<p>
+1) From the menu, select [Boards]=>[Generate New Boards]<p>
+2) Choose the board dimensions, and how many boards to generate.<p>
+3) Click Generate.<p>
+When generation is done, select [File]=>[Load Random Board] from the main menu to play one of the boards.
+"""
+    
+    if textType == "richtext":
+      return  msg
+    else:
+      return msg.replace("<p>", "\n\n").replace("<h3>", "").replace("<\h3>", "")
+  
   def __init__(self, configFileLoc):
     
     self.configFileLoc = configFileLoc
@@ -251,7 +286,8 @@ class Controller(object):
     """ Delete the current board from the database """
     
     # if the user confirms this is okay
-    if self.gui.confirmAction("Are you sure you want to delete this board?"):
+    if self.board.getID() is not None and\
+       self.gui.confirmAction("Are you sure you want to delete this board?"):
       
       # remove the board from the database and clear it
       self.db.removeBoard(*self.board.getBoardDimensions(), self.board.getID())
