@@ -142,44 +142,7 @@ When generation is done, select [File]=>[Load Random Board] from the main menu t
     # create a GUI
     self.gui = PyQtGUI(self, self.board)
     
-    # create a blank board
-    #self.board = Board(rows=self.rows, columns=self.columns)
-    
-    # create a GUI
-    #self.gui = PyQtGUI(self, self.board)
-    
-  def DEP_updateTimeStats(self, newValue):
-    """
-    #
-    # mean = lastMean + ((val - lastMean) / n)
-    #
-    # S = lastS + (val - lastMean) * (val - mean)
-    # stDev = sqrt(S/total)
-    #
-    """
-    
-    timeStats  = self.db.getTimeStats(self.board)
-    currMean   = timeStats["mean"]
-    currVarPop = timeStats["varPop"]
-    currCount  = timeStats["count"]
-    
-    # update count
-    count = currCount + 1
-    
-    # update mean
-    mean = currMean + ((newValue - currMean) / count)
-    
-    # update varPop and calculate std Dev
-    varPop = currVarPop + (newValue - currMean) * (newValue - mean)
-    stdDev = np.sqrt(varPop/count)
-    
-    self.db.storeTimeStats(board  = self.board,
-                           mean   = mean,
-                           varPop = varPop,
-                           count  = count)
-    
-    return mean, varPop
-  
+
   def _updateConfig(self, **kwargs):
     """ Update the configuration data """
     Controller._updateConfigFile(self.configFileLoc, kwargs)

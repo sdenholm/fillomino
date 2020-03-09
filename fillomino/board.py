@@ -327,11 +327,7 @@ class Board(object):
 
 
   def updateGroups(self):
-    """
-    # Group all of the board cells into groups
-    #
-    """
-    
+    """ Group all of the board cells into groups """
     
     # reset the group info
     for i in range(10):
