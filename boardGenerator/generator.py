@@ -105,6 +105,16 @@ class CellList(object):
 
 
 class BoardGenerator(object):
+  """
+  # generation notes:
+  #
+  # -choose to keep X cells in a group
+  #  -decide on which cells to keep based on rules:
+  #   -all cells have to be at edge of group
+  #     -maybe "corner", i.e., most down-left in group
+  #   -if 2 more more cells in a group, all have to be touching
+  #     -OR in at least groups of 2or3
+  """
   
   # numpy random is not thread-safe, so multiple threads get the same
   # random numbers
@@ -543,9 +553,8 @@ class BoardGenerator(object):
     """
     # Try to merge a group of blank cells into one of their neighbours
     #
-    #
-    #
     """
+    
     #logger.debug("lone cells: {}".format(cellList))
     board = copy.deepcopy(board)
     cellList = copy.deepcopy(cellList)
@@ -708,23 +717,6 @@ class BoardGenerator(object):
     #
     # -board: (Board) where the current values are that of a valid, completed board
     """
-    
-    # -choose to keep X cells in a group
-    #  -decide on which cells to keep based on rules:
-    #   -all cells have to be at edge of group
-    #     -maybe "corner", i.e., most down-left in group
-    #   -if 2 more more cells in a group, all have to be touching
-    #     -OR in at least groups of 2or3
-    
-    """
-    #
-    # mean = lastMean + ((val - lastMean) / n)
-    #
-    # S = lastS + (val - lastMean) * (val - mean)
-    # stDev = sqrt(S/total)
-    #
-    """
-    
     
     # make sure the board is complete
     if not board.isBoardComplete():

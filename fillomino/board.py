@@ -118,8 +118,29 @@ class Board(object):
     # -stats:         (dictionary)
     #
     """
-    #print("ID: ", kwargs.get("id"))
-    #print(initialValues)
+    
+    # CHECK: passed types
+    if not isinstance(rows, int):
+      raise TypeError("rows must be an int")
+    if not isinstance(columns, int):
+      raise TypeError("columns must be an int")
+    if not (initialValues is None or isinstance(initialValues, np.ndarray)):
+      raise TypeError("initialValues must be a numpy array")
+    if not (finalValues is None or isinstance(finalValues, np.ndarray)):
+      raise TypeError("finalValues must be a numpy array")
+    
+    # CHECK: passed values
+    if rows < Board.MIN_BOARD_ROWS:
+      raise ValueError("rows must be at least {}".format(Board.MIN_BOARD_ROWS))
+    if columns < Board.MIN_BOARD_COLUMNS:
+      raise ValueError("columns must be at least {}".format(Board.MIN_BOARD_COLUMNS))
+    if initialValues is not None and initialValues.shape != (rows, columns):
+      raise ValueError("initialValues is the wrong shape, ({}); should be ({},{})"\
+                        .format(initialValues.shape, rows, columns))
+    if finalValues is not None and finalValues.shape != (rows, columns):
+      raise ValueError("finalValues is the wrong shape, ({}); should be ({},{})"\
+                        .format(finalValues.shape, rows, columns))
+    
     # if no initial values given then set to 0s (all blank)
     if initialValues is None:
       initialValues = np.zeros((rows, columns), np.int8)

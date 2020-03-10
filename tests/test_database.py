@@ -1,6 +1,8 @@
+
+import unittest
+
 import datetime
 import os
-import unittest
 
 import numpy as np
 

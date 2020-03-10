@@ -194,7 +194,11 @@ class PyQtGUI(GUI, QtCore.QObject):
     
       self.setModal(True)
       self.setObjectName("Dialog")
-    
+      
+      #########################################################################
+      # from GUI designer:
+      #########################################################################
+
       verticalLayout_3 = QtWidgets.QVBoxLayout(self)
       verticalLayout_2 = QtWidgets.QVBoxLayout()
       horizontalWidget_2 = QtWidgets.QWidget(self)
@@ -300,9 +304,11 @@ class PyQtGUI(GUI, QtCore.QObject):
       horizontalLayout_5.setStretch(0, 1000)
       verticalLayout_2.addLayout(horizontalLayout_5)
       verticalLayout_3.addLayout(verticalLayout_2)
-
+      
       label_4.setText("In Database")
       label.setText("X")
+
+      #########################################################################
       
       # set row and column labels to the current board dimensions
       self.rowsLabel.setText(str(gui.board.getBoardDimensions()[0]))
